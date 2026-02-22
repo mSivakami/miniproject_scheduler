@@ -15,12 +15,7 @@ from structures import Teacher, Subject, Class, LessonBlock, Timetable
 def generate_pdf_timetable(timetable: Timetable, classes: Dict[str, Class],
                           teachers: Dict[str, Teacher], subjects: Dict[str, Subject],
                           lesson_blocks: List[LessonBlock], filename: str = "timetable.pdf"):
-    """
-    Generates PDF with:
-    1) Class-wise timetable
-    2) Teacher-wise timetable
-    """
-
+    
     doc = SimpleDocTemplate(
         filename,
         pagesize=landscape(A4),
