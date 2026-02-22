@@ -1,6 +1,6 @@
 import time
 from structures import Break
-from test_case_generation import create_comprehensive_test_case
+from tt_cs import create_comprehensive_test_case
 from genetic import GeneticTimetableScheduler
 from printer import print_timetable
 from pdf_generation import generate_pdf_timetable
@@ -24,7 +24,12 @@ def main():
 
     # print(lesson_blocks)
 
-    breaks = {(day, BREAK_PERIOD): Break("Lunch") for day in range(DAYS)}
+    breaks = {}
+    # Mon–Thu lunch at period 3
+    for day in range(DAYS - 1):
+        breaks[(day, 3)] = Break("Lunch")
+    # Friday lunch at period 4
+    breaks[(DAYS - 1, 4)] = Break("Lunch")
 
     total_periods = sum(l.duration for l in lesson_blocks)
     usable        = DAYS * (PERIODS_PER_DAY - 1) * len(classes)   # -1 for break
