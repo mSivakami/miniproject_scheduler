@@ -90,9 +90,9 @@ def main():
         print(f"     Unassigned     : {unassigned}  (shown as '---' in grid)")
 
     # ── 4. Print timetable ────────────────────────────────────────────────
-    print("\n[4] Timetable")
-    print_timetable(best_tt, classes, teachers, subjects, lesson_blocks)
-    print(best_tt.assignments)
+    # print("\n[4] Timetable")
+    # print_timetable(best_tt, classes, teachers, subjects, lesson_blocks)
+    # print(best_tt.assignments)
 
     print(f"\nTotal time: {time.time() - total_start:.1f}s")
 

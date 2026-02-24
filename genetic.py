@@ -37,7 +37,7 @@ class GeneticTimetableScheduler:
         self.generations        = 300
         self.elite_size         = 15
         self.tournament_size    = 4
-        self.base_mutation_rate = 0.35
+        self.base_mutation_rate = 0.25
         self.mutation_rate      = self.base_mutation_rate
 
     # ── population ────────────────────────────────────────────────────────
@@ -55,9 +55,9 @@ class GeneticTimetableScheduler:
                 ts    = TimeSlot(day, start, lesson.duration)
                 if (
                     tt.can_assign(lesson, ts)
-                    and tt.is_teacher_free(lesson.teacher_id, ts)
-                    and tt.is_room_free(lesson.room_id, ts)
-                    and tt.is_class_free(lesson.class_id, ts)
+                    and tt.are_teachers_free(lesson.teacher_ids, ts)
+                    and tt.are_rooms_free(lesson.room_ids, ts)
+                    and tt.are_classes_free(lesson.class_ids, ts)
                 ):
                     tt.assign(lesson, ts)
                     break
@@ -110,9 +110,9 @@ class GeneticTimetableScheduler:
 
             if (
                 tt.can_assign(lesson, new_ts)
-                and tt.is_teacher_free(lesson.teacher_id, new_ts)
-                and tt.is_room_free(lesson.room_id, new_ts)
-                and tt.is_class_free(lesson.class_id, new_ts)
+                and tt.are_teachers_free(lesson.teacher_ids, new_ts)
+                and tt.are_rooms_free(lesson.room_ids, new_ts)
+                and tt.are_classes_free(lesson.class_ids, new_ts)
             ):
                 tt.assign(lesson, new_ts)
                 return
@@ -131,13 +131,12 @@ class GeneticTimetableScheduler:
             return
 
         if (
-            tt.can_assign(l1, s2) and tt.can_assign(l2, s1) and
-            tt.is_teacher_free(l1.teacher_id, s2) and
-            tt.is_teacher_free(l2.teacher_id, s1) and
-            tt.is_room_free(l1.room_id, s2) and
-            tt.is_room_free(l2.room_id, s1) and
-            tt.is_class_free(l1.class_id, s2) and
-            tt.is_class_free(l2.class_id, s1)
+            tt.are_teachers_free(l1.teacher_ids, s2) and
+            tt.are_teachers_free(l2.teacher_ids, s1) and
+            tt.are_rooms_free(l1.room_ids, s2) and
+            tt.are_rooms_free(l2.room_ids, s1) and
+            tt.are_classes_free(l1.class_ids, s2) and
+            tt.are_classes_free(l2.class_ids, s1)
         ):
             tt.assign(l1, s2)
             tt.assign(l2, s1)
@@ -146,7 +145,7 @@ class GeneticTimetableScheduler:
 
     def _adapt(self, stagnation: int):
         if stagnation > 10:
-            self.mutation_rate = min(0.65, self.mutation_rate * 1.15)
+            self.mutation_rate = min(0.45, self.mutation_rate * 1.15)
         else:
             self.mutation_rate = self.base_mutation_rate
 
@@ -214,6 +213,10 @@ class GeneticTimetableScheduler:
             stagnation = stagnation + 1 if best == prev_best else 0
             self._adapt(stagnation)
             prev_best = best
+
+            if stagnation > 60:
+                print(f"  Early stopping at generation {gen} due to stagnation.", flush=True)
+                break
 
             # next generation
             new_pop = [tt for tt, _ in scored[:self.elite_size]]

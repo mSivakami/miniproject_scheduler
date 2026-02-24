@@ -125,32 +125,43 @@ class ConstraintChecker:
 
                 idx = ts.day * ppd + p
 
-                teacher_slot[idx][lesson.teacher_id] += 1
-                class_slot[idx][lesson.class_id] += 1
-                room_slot[idx][lesson.room_id] += 1
+                for tid in lesson.teacher_ids:
+                    teacher_slot[idx][tid] += 1
+                for cid in lesson.class_ids:
+                    class_slot[idx][cid] += 1
+                for rid in lesson.room_ids:
+                    room_slot[idx][rid]  += 1
 
-                if teacher_slot[idx][lesson.teacher_id] > 1: teacher_conflicts += 1
-                if class_slot[idx][lesson.class_id] > 1: class_conflicts += 1
-                if room_slot[idx][lesson.room_id] > 1: room_conflicts += 1
+                for tid in lesson.teacher_ids:
+                    if teacher_slot[idx][tid] > 1: teacher_conflicts += 1
+                for cid in lesson.class_ids:
+                    if class_slot[idx][cid] > 1: class_conflicts += 1
+                for rid in lesson.room_ids:
+                    if room_slot[idx][rid]  > 1: room_conflicts  += 1
 
                 if tt.is_break(ts.day, p):
                     break_violations += 1
 
-                if (ts.day, p) in self.teacher_unavailable.get(lesson.teacher_id, set()):
-                    teacher_unavailable += 1
+                for tid in lesson.teacher_ids:
+                    if (ts.day, p) in self.teacher_unavailable.get(tid, set()):
+                        teacher_unavailable += 1
 
                 if lesson.subject_id in self.difficult_subjects and p == ppd - 1:
                     difficult_last += 1
 
                 # structural tracking
                 bit = 1 << p
-                teacher_day_bits[lesson.teacher_id][ts.day] |= bit
-                teacher_week_bits[lesson.teacher_id] |= (1 << idx)
+                for tid in lesson.teacher_ids:
+                    teacher_day_bits[tid][ts.day] |= bit
+                    teacher_week_bits[tid] |= (1 << idx)
                 subject_slots.append((lesson.subject_id, ts.day, p))
 
-            class_day_load[lesson.class_id][ts.day] += lesson.duration
-            teacher_day_load[lesson.teacher_id][ts.day] += lesson.duration
-            class_subject_day[(lesson.class_id, lesson.subject_id)][ts.day] += 1
+            for cid in lesson.class_ids:
+                class_day_load[cid][ts.day] += lesson.duration
+            for tid in lesson.teacher_ids:
+                teacher_day_load[tid][ts.day] += lesson.duration
+            for cid in lesson.class_ids:
+                class_subject_day[(cid, lesson.subject_id)][ts.day] += 1
 
         # =====================================================
         # POST PROCESS

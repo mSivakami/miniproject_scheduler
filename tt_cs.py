@@ -116,41 +116,30 @@ def create_comprehensive_test_case():
     # ------------------------------------------------------------
 
     def singles_subject(tid, sid, cid, rid, n=1):
-        """
-        Create n single-period lesson blocks.
-        """
+        t = [tid] if isinstance(tid, str) else tid
+        c = [cid] if isinstance(cid, str) else cid
+        r = [rid] if isinstance(rid, str) else rid
         for _ in range(n):
-            lesson_blocks.append(
-                LessonBlock(gid(), tid, sid, cid, rid, 1)
-            )
-
+            lesson_blocks.append(LessonBlock(gid(), t, sid, c, r, 1))
 
     def doubles_lab(tid, sid, cid, lab_room):
-        """
-        Create one 2-period lab block.
-        """
-        lesson_blocks.append(
-            LessonBlock(gid(), tid, sid, cid, lab_room, 2)
-        )
-
+        t = [tid]      if isinstance(tid,      str) else tid
+        c = [cid]      if isinstance(cid,      str) else cid
+        r = [lab_room] if isinstance(lab_room, str) else lab_room
+        lesson_blocks.append(LessonBlock(gid(), t, sid, c, r, 2))
 
     def triples_lab(tid, sid, cid, lab_room):
-        """
-        Create one 3-period lab block.
-        """
-        lesson_blocks.append(
-            LessonBlock(gid(), tid, sid, cid, lab_room, 3)
-        )
-
+        t = [tid]      if isinstance(tid,      str) else tid
+        c = [cid]      if isinstance(cid,      str) else cid
+        r = [lab_room] if isinstance(lab_room, str) else lab_room
+        lesson_blocks.append(LessonBlock(gid(), t, sid, c, r, 3))
 
     def general_subject(tid, sid, cid, rid, duration):
-        """
-        Create one lesson block of arbitrary duration.
-        """
-        lesson_blocks.append(
-            LessonBlock(gid(), tid, sid, cid, rid, duration)
-        )
-
+        t = [tid] if isinstance(tid, str) else tid
+        c = [cid] if isinstance(cid, str) else cid
+        r = [rid] if isinstance(rid, str) else rid
+        lesson_blocks.append(LessonBlock(gid(), t, sid, c, r, duration))
+        
     # ─────────── Lesson Blocks for Semester 2 ──────────────────────────────────
     # S2_SCI - Ezhudeen - 3 single
     singles_subject("T11", "S2_SCI", "C_S2", "R_S2", 3)

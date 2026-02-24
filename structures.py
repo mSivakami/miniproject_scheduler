@@ -66,18 +66,29 @@ class TimeSlot:
     def copy(self) -> "TimeSlot":
         return TimeSlot(self.day, self.start_period, self.duration)
 
-
 @dataclass
 class LessonBlock:
     id: str
-    teacher_id: str
-    subject_id: str
-    class_id: str
-    room_id: str
-    duration: int
-    is_locked: bool = False
+    teacher_ids: List[str]   # was teacher_id: str
+    subject_id:  str
+    class_ids:   List[str]   # was class_id: str
+    room_ids:    List[str]   # was room_id: str
+    duration:    int
+    is_locked:   bool = False
     locked_timeslot: Optional[TimeSlot] = None
 
+    # backward-compat shims — old code reading .teacher_id / .class_id / .room_id still works
+    @property
+    def teacher_id(self) -> str:
+        return self.teacher_ids[0] if self.teacher_ids else None
+
+    @property
+    def class_id(self) -> str:
+        return self.class_ids[0] if self.class_ids else None
+
+    @property
+    def room_id(self) -> str:
+        return self.room_ids[0] if self.room_ids else None
 
 # =========================================================
 # BITMASK TIMETABLE ENGINE
@@ -108,13 +119,19 @@ class Timetable:
 
     def _apply_mask(self, lesson: LessonBlock, mask: int, add: bool):
         if add:
-            self.teacher_mask[lesson.teacher_id] |= mask
-            self.room_mask[lesson.room_id] |= mask
-            self.class_mask[lesson.class_id] |= mask
+            for tid in lesson.teacher_ids:
+                self.teacher_mask[tid] |= mask
+            for cid in lesson.class_ids:
+                self.class_mask[cid] |= mask
+            for rid in lesson.room_ids:
+                self.room_mask[rid]  |= mask
         else:
-            self.teacher_mask[lesson.teacher_id] &= ~mask
-            self.room_mask[lesson.room_id] &= ~mask
-            self.class_mask[lesson.class_id] &= ~mask
+            for tid in lesson.teacher_ids:
+                self.teacher_mask[tid] &= ~mask
+            for cid in lesson.class_ids:
+                self.class_mask[cid] &= ~mask
+            for rid in lesson.room_ids:
+                self.room_mask[rid]  &= ~mask
 
     # -----------------------------------------------------
 
@@ -159,6 +176,18 @@ class Timetable:
 
     def is_class_free(self, class_id: str, ts: TimeSlot) -> bool:
         return not (self.class_mask[class_id] & ts.bitmask(self.periods_per_day))
+
+    def are_teachers_free(self, teacher_ids: List[str], ts: TimeSlot) -> bool:
+        mask = ts.bitmask(self.periods_per_day)
+        return all(not (self.teacher_mask[tid] & mask) for tid in teacher_ids)
+
+    def are_classes_free(self, class_ids: List[str], ts: TimeSlot) -> bool:
+        mask = ts.bitmask(self.periods_per_day)
+        return all(not (self.class_mask[cid] & mask) for cid in class_ids)
+
+    def are_rooms_free(self, room_ids: List[str], ts: TimeSlot) -> bool:
+        mask = ts.bitmask(self.periods_per_day)
+        return all(not (self.room_mask[rid] & mask) for rid in room_ids)
 
     # -----------------------------------------------------
     # WRITE
@@ -219,15 +248,15 @@ class LockedLessonBuilder:
         blocks = []
         for cfg in self._configs:
             blocks.append(LessonBlock(
-                id=id_gen(),
-                teacher_id=cfg.teacher_id,
-                subject_id=cfg.subject_id,
-                class_id=cfg.class_id,
-                room_id=cfg.room_id,
-                duration=cfg.duration,
-                is_locked=True,
-                locked_timeslot=TimeSlot(cfg.day, cfg.period, cfg.duration),
-            ))
+            id=id_gen(),
+            teacher_ids=[cfg.teacher_id], 
+            subject_id=cfg.subject_id,
+            class_ids=[cfg.class_id],    
+            room_ids=[cfg.room_id], 
+            duration=cfg.duration,
+            is_locked=True,
+            locked_timeslot=TimeSlot(cfg.day, cfg.period, cfg.duration),
+        ))
         return blocks
 
     def get_locked_subjects(self) -> Dict[str, Subject]:
