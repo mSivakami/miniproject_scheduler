@@ -1,7 +1,6 @@
 from typing import Dict, List
 from structures import Timetable, Class, Teacher, Subject, LessonBlock
 
-
 DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri"]
 COL_W = 22
 
@@ -18,7 +17,6 @@ def print_timetable(
         print(f"  CLASS: {cls.name}")
         print("=" * 100)
 
-        # build display grid  [period][day] = cell string
         grid = [["---"] * tt.days for _ in range(tt.periods_per_day)]
 
         for (day, period), brk in tt.breaks.items():
@@ -26,16 +24,24 @@ def print_timetable(
                 grid[period][day] = "[BREAK]"
 
         for lesson in lesson_blocks:
-            if lesson.class_id != cls.id:
+            # FIX 6: list membership check, not shim equality
+            if cls.id not in lesson.class_ids:
                 continue
             ts = tt.get_assignment(lesson.id)
             if not ts:
                 continue
 
-            subj    = subjects.get(lesson.subject_id)
-            teacher = teachers.get(lesson.teacher_id)
-            sname = subj.name.split()[1] if subj and len(subj.name.split()) > 1 else (subj.name if subj else lesson.subject_id)
-            tname = teacher.name.split()[-1] if teacher else lesson.teacher_id
+            subj  = subjects.get(lesson.subject_id)
+            sname = (subj.name.split()[1]
+                     if subj and len(subj.name.split()) > 1
+                     else (subj.name if subj else lesson.subject_id))
+
+            # FIX 7: join all teacher surnames
+            tname = "/".join(
+                teachers[tid].name.split()[-1]
+                for tid in lesson.teacher_ids
+                if tid in teachers
+            ) or "?"
 
             cell = f"{sname}({tname})"
             if lesson.duration > 1:
@@ -46,7 +52,6 @@ def print_timetable(
                 if 0 <= p < tt.periods_per_day:
                     grid[p][ts.day] = cell
 
-        # header
         print(f"{'P':4}", end="")
         for d in DAY_NAMES[:tt.days]:
             print(f"{d:<{COL_W}}", end="")

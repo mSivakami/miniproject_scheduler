@@ -114,31 +114,29 @@ def create_comprehensive_test_case():
     # ------------------------------------------------------------
     # Lesson Block Helpers
     # ------------------------------------------------------------
+    
+    lesson_blocks = []
+    _n = [1]
+
+    def gid():
+        lid = f"L{_n[0]:04d}"; _n[0] += 1; return lid
+
+    def _l(x):
+        """Wrap str in list; pass list through unchanged."""
+        return [x] if isinstance(x, str) else x
 
     def singles_subject(tid, sid, cid, rid, n=1):
-        t = [tid] if isinstance(tid, str) else tid
-        c = [cid] if isinstance(cid, str) else cid
-        r = [rid] if isinstance(rid, str) else rid
         for _ in range(n):
-            lesson_blocks.append(LessonBlock(gid(), t, sid, c, r, 1))
+            lesson_blocks.append(LessonBlock(gid(), _l(tid), sid, _l(cid), _l(rid), 1))
 
     def doubles_lab(tid, sid, cid, lab_room):
-        t = [tid]      if isinstance(tid,      str) else tid
-        c = [cid]      if isinstance(cid,      str) else cid
-        r = [lab_room] if isinstance(lab_room, str) else lab_room
-        lesson_blocks.append(LessonBlock(gid(), t, sid, c, r, 2))
+        lesson_blocks.append(LessonBlock(gid(), _l(tid), sid, _l(cid), _l(lab_room), 2))
 
     def triples_lab(tid, sid, cid, lab_room):
-        t = [tid]      if isinstance(tid,      str) else tid
-        c = [cid]      if isinstance(cid,      str) else cid
-        r = [lab_room] if isinstance(lab_room, str) else lab_room
-        lesson_blocks.append(LessonBlock(gid(), t, sid, c, r, 3))
+        lesson_blocks.append(LessonBlock(gid(), _l(tid), sid, _l(cid), _l(lab_room), 3))
 
     def general_subject(tid, sid, cid, rid, duration):
-        t = [tid] if isinstance(tid, str) else tid
-        c = [cid] if isinstance(cid, str) else cid
-        r = [rid] if isinstance(rid, str) else rid
-        lesson_blocks.append(LessonBlock(gid(), t, sid, c, r, duration))
+        lesson_blocks.append(LessonBlock(gid(), _l(tid), sid, _l(cid), _l(rid), duration))
         
     # ─────────── Lesson Blocks for Semester 2 ──────────────────────────────────
     # S2_SCI - Ezhudeen - 3 single
@@ -175,8 +173,8 @@ def create_comprehensive_test_case():
     singles_subject("T09", "S6_ELEC1", "C_S6", "R_S6", 3)
     singles_subject("T18", "S6_IEFD", "C_S6", "R_S6", 3)
     singles_subject("T04", "S6_CCW", "C_S6", "R_S6", 1)
-    triples_lab("T14", "S6_NETLAB", "C_S6", "LAB1")
-    triples_lab("T15", "S6_MINIP", "C_S6", "LAB2")
+    triples_lab("T14", "S6_NETLAB", "C_S6", ["LAB1", "LAB2"])
+    triples_lab("T15", "S6_MINIP", "C_S6", ["LAB1", "LAB2"])
 
     # ─────────── Lesson Blocks for Semester 8 ──────────────────────────────────
     singles_subject("T09", "S8_DC", "C_S8", "R_S8", 3)

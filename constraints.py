@@ -34,6 +34,7 @@ class ConstraintChecker:
         "break_violation":     20_000,
         "locked_violation":    50_000,
         "unassigned":          15_000,
+        "two_labs_same_day": 25_000,
     }
 
     SOFT = {
@@ -173,6 +174,23 @@ class ConstraintChecker:
             for cnt in day_map.values()
         )
 
+        class_day_labs = defaultdict(list)
+        for lesson in self.lesson_blocks:
+            if lesson.subject_id not in self.lab_subjects:
+                continue
+            ts = tt.get_assignment(lesson.id)
+            if ts is None:
+                continue
+            for cid in lesson.class_ids:
+                class_day_labs[(cid, ts.day)].append(ts.start_period)
+
+        # Each extra lab beyond the first on the same day is a violation
+        two_labs_same_day = sum(
+            len(slots) - 1
+            for slots in class_day_labs.values()
+            if len(slots) > 1
+        )
+
         class_balance = sum(variance5([load.get(d, 0) for d in range(days)]) for load in class_day_load.values())
         teacher_balance = sum(variance5([load.get(d, 0) for d in range(days)]) for load in teacher_day_load.values())
 
@@ -203,6 +221,7 @@ class ConstraintChecker:
         p += break_violations * self.HARD["break_violation"]
         p += locked_violations * self.HARD["locked_violation"]
         p += unassigned * self.HARD["unassigned"]
+        p += two_labs_same_day * self.HARD["two_labs_same_day"]
 
         p += difficult_last * self.SOFT["difficult_last"]
         p += subject_repeat * self.SOFT["subject_repeat"]

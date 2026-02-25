@@ -241,7 +241,7 @@ DAY_NAMES  = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 DAY_SHORT  = ["Mon", "Tue", "Wed", "Thu", "Fri"]
 PERIOD_CHAR = "█"
 FREE_CHAR   = "░"
-BREAK_CHAR  = "▒"
+BREAK_CHAR  = "X"
 
 def _bar(filled, total, width=20, fill="█", empty="░"):
     n = round(filled / total * width) if total else 0
