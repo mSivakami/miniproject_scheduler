@@ -34,8 +34,8 @@ class GeneticTimetableScheduler:
 
         # GA hyper-parameters
         self.population_size    = 100
-        self.generations        = 300
-        self.elite_size         = 15
+        self.generations        = 250
+        self.elite_size         = 10
         self.tournament_size    = 4
         self.base_mutation_rate = 0.25
         self.mutation_rate      = self.base_mutation_rate
@@ -145,9 +145,10 @@ class GeneticTimetableScheduler:
 
     def _adapt(self, stagnation: int):
         if stagnation > 10:
-            self.mutation_rate = min(0.45, self.mutation_rate * 1.15)
+            self.mutation_rate = min(0.6, self.mutation_rate * 1.15)
         else:
             self.mutation_rate = self.base_mutation_rate
+            
 
     # ── main loop ─────────────────────────────────────────────────────────
 
@@ -214,9 +215,9 @@ class GeneticTimetableScheduler:
             self._adapt(stagnation)
             prev_best = best
 
-            if stagnation > 60:
-                print(f"  Early stopping at generation {gen} due to stagnation.", flush=True)
-                break
+            # if stagnation > 60:
+            #     print(f"  Early stopping at generation {gen} due to stagnation.", flush=True)
+            #     break
 
             # next generation
             new_pop = [tt for tt, _ in scored[:self.elite_size]]

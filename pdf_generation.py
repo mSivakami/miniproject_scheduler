@@ -15,26 +15,26 @@ from structures import Teacher, Subject, Class, LessonBlock, Timetable
 # =========================================================
 
 _SUBJECT_COLORS = [
-    "#E8F4FD",  # light sky blue
-    "#E8F8E8",  # light mint green
-    "#FEF9E7",  # light lemon
-    "#FDEBD0",  # light peach
-    "#F4ECF7",  # light lavender
-    "#E8F8F5",  # light aqua
-    "#FDEDEC",  # light rose
-    "#EBF5FB",  # light powder blue
-    "#F0F3FF",  # light periwinkle
-    "#F9EBEA",  # light blush
-    "#E9F7EF",  # light sage
-    "#FEF5E7",  # light apricot
-    "#EEF2FF",  # light indigo tint
-    "#F0FFF0",  # light honeydew
-    "#FFF0F5",  # light pink
-    "#F0FFFF",  # light azure
-    "#FFFACD",  # light cornsilk
-    "#F5F0FF",  # light thistle
-    "#EFFFEF",  # light pale green
-    "#FFF8F0",  # light bisque
+    "#D6EAF8",  # slightly darker sky blue
+    "#D5F5E3",  # slightly darker mint green
+    "#FCF3CF",  # slightly darker lemon
+    "#FAD7A0",  # slightly darker peach
+    "#EBDEF0",  # slightly darker lavender
+    "#D1F2EB",  # slightly darker aqua
+    "#F5C6CB",  # slightly darker rose
+    "#D4E6F1",  # slightly darker powder blue
+    "#E0E7FF",  # slightly darker periwinkle
+    "#FADBD8",  # slightly darker blush
+    "#D4EFDF",  # slightly darker sage
+    "#FDEBD0",  # slightly darker apricot
+    "#D6DBFF",  # slightly darker indigo tint
+    "#DFFFD6",  # slightly darker honeydew
+    "#FFE4E1",  # slightly darker pink
+    "#E0FFFF",  # slightly darker azure
+    "#FFF3B0",  # slightly darker cornsilk
+    "#E6D6FF",  # slightly darker thistle
+    "#DFFFE0",  # slightly darker pale green
+    "#FFECD1",  # slightly darker bisque
 ]
 
 

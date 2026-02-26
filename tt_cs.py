@@ -26,10 +26,10 @@ def create_comprehensive_test_case():
     # ── Subjects ──────────────────────────────────────────────────────────
     subjects = {
         # ── Semester 2 ─────────────────────────────────────────────
-        "S2_SCI":  Subject("S2_SCI",  "Science",                    is_difficult=True,  priority=1),
+        "S2_SCI":  Subject("S2_SCI",  "Science",                    is_difficult=False,  priority=1),
         "S2_PHY":  Subject("S2_PHY",  "Physics",                    is_difficult=True,  priority=2),
         "S2_WEB":  Subject("S2_WEB",  "Hardware and Web Systems",   is_difficult=True,  priority=3),
-        "S2_CP":   Subject("S2_CP",   "C Programming",              is_difficult=False,  priority=4),
+        "S2_CP":   Subject("S2_CP",   "C Programming",              is_difficult=True,  priority=4),
         "S2_DM":   Subject("S2_DM",   "Discrete Mathematics",        is_difficult=False,  priority=5),
         "S2_IPR":  Subject("S2_IPR",  "Intellectual Property Rights", is_difficult=False, priority=6),
         "S2_IT":   Subject("S2_IT",   "IT Workshop",                 is_difficult=False, is_lab=True, priority=2),
@@ -41,8 +41,8 @@ def create_comprehensive_test_case():
         "S4_COA":      Subject("S4_COA",      "Computer Organization and Architecture", is_difficult=True, priority=4),
         "S4_ELEC":     Subject("S4_ELEC",     "Elective",                   is_difficult=False, priority=5),
         "S4_ETH":      Subject("S4_ETH",      "Ethics",                     is_difficult=False, priority=6),
-        "S4_OSLAB":    Subject("S4_OSLAB",    "Operating Systems Lab",      is_difficult=True,  is_lab=True, priority=2),
-        "S4_DBMSLAB":  Subject("S4_DBMSLAB",  "DBMS Lab",                   is_difficult=True,  is_lab=True, priority=2),
+        "S4_OSLAB":    Subject("S4_OSLAB",    "Operating Systems Lab",      is_difficult=False,  is_lab=True, priority=2),
+        "S4_DBMSLAB":  Subject("S4_DBMSLAB",  "DBMS Lab",                   is_difficult=False,  is_lab=True, priority=2),
         "S4_MINOR":    Subject("S4_MINOR",      "Minor",                    is_difficult=False, priority=6),
         "S4_HONOURS":  Subject("S4_HONOURS",      "Honours",                is_difficult=False, priority=6),
 
@@ -53,7 +53,7 @@ def create_comprehensive_test_case():
         "S6_ELEC1":  Subject("S6_ELEC1",  "Elective 1",                 is_difficult=False, priority=4),
         "S6_IEFD":   Subject("S6_IEFD",   "Industrial Economics and Financial Decisions", is_difficult=False, priority=5),
         "S6_CCW":    Subject("S6_CCW",    "Comprehensive Course Work", is_difficult=False, priority=6),
-        "S6_NETLAB": Subject("S6_NETLAB", "Networking Lab",             is_difficult=True, is_lab=True, priority=2),
+        "S6_NETLAB": Subject("S6_NETLAB", "Networking Lab",             is_difficult=False, is_lab=True, priority=2),
         "S6_MINIP":  Subject("S6_MINIP",  "Mini Project",               is_difficult=False, is_lab=True, priority=4),
         "S6_MINOR":  Subject("S6_MINOR",      "Minor",                  is_difficult=False, priority=6),
         "S6_HONOURS":Subject("S6_HONOURS",      "Honours",              is_difficult=False, priority=6),
@@ -101,11 +101,11 @@ def create_comprehensive_test_case():
 
     locked = LockedLessonBuilder()
 
-    locked.add(
-        subject_id="S4_MINOR", subject_name="Minor",
-        teacher_ids=["T14","T16","T12"], class_ids="C_S4", room_ids="R_S4",
-        day=4, period=5, duration=2,
-    )
+    # locked.add(
+    #     subject_id="S4_MINOR", subject_name="Minor",
+    #     teacher_ids=["T14","T16","T12"], class_ids="C_S4", room_ids="R_S4",
+    #     day=4, period=5, duration=2,
+    # )
     locked.add(
         subject_id="S4_MINOR", subject_name="Minor",
         teacher_ids=["T14","T16","T12"], class_ids="C_S4", room_ids="R_S4",
@@ -180,8 +180,8 @@ def create_comprehensive_test_case():
     singles_subject("T08", "S4_COA", "C_S4", "R_S4", 4)
     singles_subject("T11", "S4_ELEC", "C_S4", "R_S4", 3)
     singles_subject("T04", "S4_ETH", "C_S4", "R_S4", 2)
-    triples_lab(["T08","T09","T11","T16"], "S4_OSLAB", "C_S4", ["LAB1","LAB2"])
-    triples_lab(["T08","T09","T11","T16"], "S4_DBMSLAB", "C_S4", ["LAB1","LAB2"])
+    triples_lab(["T08","T09"], "S4_OSLAB", "C_S4", ["LAB1","LAB2"])
+    triples_lab(["T11","T16"], "S4_DBMSLAB", "C_S4", ["LAB1","LAB2"])
 
     # ─────────── Lesson Blocks for Semester 6 ──────────────────────────────────
     singles_subject("T12", "S6_CD", "C_S6", "R_S6", 4)
