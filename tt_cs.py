@@ -12,7 +12,7 @@ def create_comprehensive_test_case():
         "T07": Teacher("T07", "Bisna"),
         "T08": Teacher("T08", "Dilesh"),
         "T09": Teacher("T09", "Panchami"),
-        #"T10": Teacher("T10", "Pankajakshan"),
+        "T10": Teacher("T10", "Minors Coordinator"),
         "T11": Teacher("T11", "Ezhudeen"),
         "T12": Teacher("T12", "Soumya"),
         "T13": Teacher("T13", "Shehin"),
@@ -29,13 +29,13 @@ def create_comprehensive_test_case():
         "S2_SCI":  Subject("S2_SCI",  "Science",                    is_difficult=True,  priority=1),
         "S2_PHY":  Subject("S2_PHY",  "Physics",                    is_difficult=True,  priority=2),
         "S2_WEB":  Subject("S2_WEB",  "Hardware and Web Systems",   is_difficult=True,  priority=3),
-        "S2_CP":   Subject("S2_CP",   "C Programming",              is_difficult=True,  priority=4),
-        "S2_DM":   Subject("S2_DM",   "Discrete Mathematics",        is_difficult=True,  priority=5),
+        "S2_CP":   Subject("S2_CP",   "C Programming",              is_difficult=False,  priority=4),
+        "S2_DM":   Subject("S2_DM",   "Discrete Mathematics",        is_difficult=False,  priority=5),
         "S2_IPR":  Subject("S2_IPR",  "Intellectual Property Rights", is_difficult=False, priority=6),
         "S2_IT":   Subject("S2_IT",   "IT Workshop",                 is_difficult=False, is_lab=True, priority=2),
 
         # ── Semester 4 ─────────────────────────────────────────────
-        "S4_MATH":     Subject("S4_MATH",     "Mathematics",               is_difficult=True,  priority=1),
+        "S4_MATH":     Subject("S4_MATH",     "Mathematics",               is_difficult=False,  priority=1),
         "S4_DBMS":     Subject("S4_DBMS",     "Database Management Systems", is_difficult=True, priority=2),
         "S4_OS":       Subject("S4_OS",       "Operating Systems",          is_difficult=True,  priority=3),
         "S4_COA":      Subject("S4_COA",      "Computer Organization and Architecture", is_difficult=True, priority=4),
@@ -53,7 +53,7 @@ def create_comprehensive_test_case():
         "S6_ELEC1":  Subject("S6_ELEC1",  "Elective 1",                 is_difficult=False, priority=4),
         "S6_IEFD":   Subject("S6_IEFD",   "Industrial Economics and Financial Decisions", is_difficult=False, priority=5),
         "S6_CCW":    Subject("S6_CCW",    "Comprehensive Course Work", is_difficult=False, priority=6),
-        "S6_NETLAB": Subject("S6_NETLAB", "Networking Lab",             is_difficult=False, is_lab=True, priority=2),
+        "S6_NETLAB": Subject("S6_NETLAB", "Networking Lab",             is_difficult=True, is_lab=True, priority=2),
         "S6_MINIP":  Subject("S6_MINIP",  "Mini Project",               is_difficult=False, is_lab=True, priority=4),
         "S6_MINOR":  Subject("S6_MINOR",      "Minor",                  is_difficult=False, priority=6),
         "S6_HONOURS":Subject("S6_HONOURS",      "Honours",              is_difficult=False, priority=6),
@@ -61,9 +61,9 @@ def create_comprehensive_test_case():
 
         # ── Semester 8 ─────────────────────────────────────────────
         "S8_DC":      Subject("S8_DC",      "Distributed Computing",   is_difficult=True,  priority=1),
-        "S8_ELEC3":   Subject("S8_ELEC3",   "Elective 3",              is_difficult=True,  priority=2),
-        "S8_ELEC4":   Subject("S8_ELEC4",   "Elective 4",              is_difficult=True,  priority=3),
-        "S8_ELEC5":   Subject("S8_ELEC5",   "Elective 5",              is_difficult=True,  priority=4),
+        "S8_ELEC3":   Subject("S8_ELEC3",   "Elective 3",              is_difficult=False,  priority=2),
+        "S8_ELEC4":   Subject("S8_ELEC4",   "Elective 4",              is_difficult=False,  priority=3),
+        "S8_ELEC5":   Subject("S8_ELEC5",   "Elective 5",              is_difficult=False,  priority=4),
         "S8_CCV":     Subject("S8_CCV",     "Comprehensive Viva",      is_difficult=False, priority=5),
         "S8_PROJECT": Subject("S8_PROJECT", "Major Project",           is_difficult=False, is_lab=True, priority=2),
         "S8_HONOURS": Subject("S8_HONOURS",      "Honours",              is_difficult=False, priority=6),
@@ -99,70 +99,45 @@ def create_comprehensive_test_case():
     def gid():
         lid = f"L{_n[0]:04d}"; _n[0] += 1; return lid
 
-    # Locked events
-    builder = LockedLessonBuilder()
+    locked = LockedLessonBuilder()
 
-    builder.add_weekly_event(
+    locked.add(
         subject_id="S4_MINOR", subject_name="Minor",
-        teacher_id="T14", class_id="C_S4", room_id="R_S4",
-        day=4, period=5, duration=2, description="Minor",
+        teacher_ids=["T14","T16","T12"], class_ids="C_S4", room_ids="R_S4",
+        day=4, period=5, duration=2,
     )
-
-    builder.add_weekly_event(
+    locked.add(
         subject_id="S4_MINOR", subject_name="Minor",
-        teacher_id="T14", class_id="C_S4", room_id="R_S4",
-        day=2, period=5, duration=2, description="Minor",
+        teacher_ids=["T14","T16","T12"], class_ids="C_S4", room_ids="R_S4",
+        day=2, period=5, duration=2,
     )
-
-    builder.add_weekly_event(
+    locked.add(
         subject_id="S6_MINOR", subject_name="Minor",
-        teacher_id="T12", class_id="C_S6", room_id="R_S6",
-        day=4, period=5, duration=2, description="Minor",
+        teacher_ids="T10", class_ids="C_S6", room_ids="R_S6",
+        day=4, period=5, duration=2,
     )
-    builder.add_weekly_event(
+    locked.add(
         subject_id="S6_MINOR", subject_name="Minor",
-        teacher_id="T12", class_id="C_S6", room_id="R_S6",
-        day=3, period=1, duration=1, description="Minor",
+        teacher_ids="T10", class_ids="C_S6", room_ids="R_S6",
+        day=3, period=1, duration=1,
     )
-
-    builder.add_weekly_event(
+    locked.add(
         subject_id="S6_HONOURS", subject_name="Honours",
-        teacher_id="T14", class_id="C_S6", room_id="R_S6",
-        day=4, period=4, duration=1, description="Honours",
+        teacher_ids="T14", class_ids="C_S6", room_ids="R_S6",
+        day=4, period=3, duration=1,
     )
-
-    builder.add_weekly_event(
+    locked.add(
         subject_id="S8_HONOURS", subject_name="Honours",
-        teacher_id="T03", class_id="C_S8", room_id="R_S8",
-        day=1, period=4, duration=3, description="Honours",
+        teacher_ids="T03", class_ids="C_S8", room_ids="R_S8",
+        day=1, period=4, duration=3,
     )
 
-    # # Sports — separate coaches for G9A and G9B
-    # builder.add_weekly_event(
-    #     subject_id="SPORTS", subject_name="Sports",
-    #     teacher_id="T15", class_id="G9A", room_id="GYM",
-    #     day=2, period=5, duration=1, description="G9A sports",
-    # )
-    # builder.add_weekly_event(
-    #     subject_id="SPORTS", subject_name="Sports",
-    #     teacher_id="T16", class_id="G9B", room_id="GYM",
-    #     day=2, period=6, duration=1, description="G9B sports",
-    # )
+    subjects.update(locked.get_subjects())
+    lesson_blocks.extend(locked.build(gid))
 
-    builder.print_summary()
-    subjects.update(builder.get_locked_subjects())
-    lesson_blocks.extend(builder.build_lesson_blocks(gid))
+    locked.print_summary()
 
-    # ------------------------------------------------------------
-    # Lesson Block Helpers
-    # ------------------------------------------------------------
-    
-    lesson_blocks = []
-    _n = [1]
-
-    def gid():
-        lid = f"L{_n[0]:04d}"; _n[0] += 1; return lid
-
+    # ── Helper Functions ───────────────────────────────────────────────────────────
     def _l(x):
         """Wrap str in list; pass list through unchanged."""
         return [x] if isinstance(x, str) else x
