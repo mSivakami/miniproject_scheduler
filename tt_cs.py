@@ -12,7 +12,7 @@ def create_comprehensive_test_case():
         "T07": Teacher("T07", "Bisna"),
         "T08": Teacher("T08", "Dilesh"),
         "T09": Teacher("T09", "Panchami"),
-        "T10": Teacher("T10", "Pankajakshan"),
+        #"T10": Teacher("T10", "Pankajakshan"),
         "T11": Teacher("T11", "Ezhudeen"),
         "T12": Teacher("T12", "Soumya"),
         "T13": Teacher("T13", "Shehin"),
@@ -43,6 +43,8 @@ def create_comprehensive_test_case():
         "S4_ETH":      Subject("S4_ETH",      "Ethics",                     is_difficult=False, priority=6),
         "S4_OSLAB":    Subject("S4_OSLAB",    "Operating Systems Lab",      is_difficult=True,  is_lab=True, priority=2),
         "S4_DBMSLAB":  Subject("S4_DBMSLAB",  "DBMS Lab",                   is_difficult=True,  is_lab=True, priority=2),
+        "S4_MINOR":    Subject("S4_MINOR",      "Minor",                    is_difficult=False, priority=6),
+        "S4_HONOURS":  Subject("S4_HONOURS",      "Honours",                is_difficult=False, priority=6),
 
         # ── Semester 6 ─────────────────────────────────────────────
         "S6_CD":     Subject("S6_CD",     "Compiler Design",           is_difficult=True,  priority=1),
@@ -53,6 +55,9 @@ def create_comprehensive_test_case():
         "S6_CCW":    Subject("S6_CCW",    "Comprehensive Course Work", is_difficult=False, priority=6),
         "S6_NETLAB": Subject("S6_NETLAB", "Networking Lab",             is_difficult=False, is_lab=True, priority=2),
         "S6_MINIP":  Subject("S6_MINIP",  "Mini Project",               is_difficult=False, is_lab=True, priority=4),
+        "S6_MINOR":  Subject("S6_MINOR",      "Minor",                  is_difficult=False, priority=6),
+        "S6_HONOURS":Subject("S6_HONOURS",      "Honours",              is_difficult=False, priority=6),
+
 
         # ── Semester 8 ─────────────────────────────────────────────
         "S8_DC":      Subject("S8_DC",      "Distributed Computing",   is_difficult=True,  priority=1),
@@ -61,6 +66,8 @@ def create_comprehensive_test_case():
         "S8_ELEC5":   Subject("S8_ELEC5",   "Elective 5",              is_difficult=True,  priority=4),
         "S8_CCV":     Subject("S8_CCV",     "Comprehensive Viva",      is_difficult=False, priority=5),
         "S8_PROJECT": Subject("S8_PROJECT", "Major Project",           is_difficult=False, is_lab=True, priority=2),
+        "S8_HONOURS": Subject("S8_HONOURS",      "Honours",              is_difficult=False, priority=6),
+
     }
 
     # ── Rooms ─────────────────────────────────────────────────────────────
@@ -95,6 +102,41 @@ def create_comprehensive_test_case():
     # Locked events
     builder = LockedLessonBuilder()
 
+    builder.add_weekly_event(
+        subject_id="S4_MINOR", subject_name="Minor",
+        teacher_id="T14", class_id="C_S4", room_id="R_S4",
+        day=4, period=5, duration=2, description="Minor",
+    )
+
+    builder.add_weekly_event(
+        subject_id="S4_MINOR", subject_name="Minor",
+        teacher_id="T14", class_id="C_S4", room_id="R_S4",
+        day=2, period=5, duration=2, description="Minor",
+    )
+
+    builder.add_weekly_event(
+        subject_id="S6_MINOR", subject_name="Minor",
+        teacher_id="T12", class_id="C_S6", room_id="R_S6",
+        day=4, period=5, duration=2, description="Minor",
+    )
+    builder.add_weekly_event(
+        subject_id="S6_MINOR", subject_name="Minor",
+        teacher_id="T12", class_id="C_S6", room_id="R_S6",
+        day=3, period=1, duration=1, description="Minor",
+    )
+
+    builder.add_weekly_event(
+        subject_id="S6_HONOURS", subject_name="Honours",
+        teacher_id="T14", class_id="C_S6", room_id="R_S6",
+        day=4, period=4, duration=1, description="Honours",
+    )
+
+    builder.add_weekly_event(
+        subject_id="S8_HONOURS", subject_name="Honours",
+        teacher_id="T03", class_id="C_S8", room_id="R_S8",
+        day=1, period=4, duration=3, description="Honours",
+    )
+
     # # Sports — separate coaches for G9A and G9B
     # builder.add_weekly_event(
     #     subject_id="SPORTS", subject_name="Sports",
@@ -107,9 +149,9 @@ def create_comprehensive_test_case():
     #     day=2, period=6, duration=1, description="G9B sports",
     # )
 
-    # builder.print_summary()
-    # subjects.update(builder.get_locked_subjects())
-    # lesson_blocks.extend(builder.build_lesson_blocks(gid))
+    builder.print_summary()
+    subjects.update(builder.get_locked_subjects())
+    lesson_blocks.extend(builder.build_lesson_blocks(gid))
 
     # ------------------------------------------------------------
     # Lesson Block Helpers
@@ -163,8 +205,8 @@ def create_comprehensive_test_case():
     singles_subject("T08", "S4_COA", "C_S4", "R_S4", 4)
     singles_subject("T11", "S4_ELEC", "C_S4", "R_S4", 3)
     singles_subject("T04", "S4_ETH", "C_S4", "R_S4", 2)
-    triples_lab("T08", "S4_OSLAB", "C_S4", "LAB1")
-    triples_lab("T10", "S4_DBMSLAB", "C_S4", "LAB2")
+    triples_lab(["T08","T09","T11","T16"], "S4_OSLAB", "C_S4", ["LAB1","LAB2"])
+    triples_lab(["T08","T09","T11","T16"], "S4_DBMSLAB", "C_S4", ["LAB1","LAB2"])
 
     # ─────────── Lesson Blocks for Semester 6 ──────────────────────────────────
     singles_subject("T12", "S6_CD", "C_S6", "R_S6", 4)
@@ -173,8 +215,8 @@ def create_comprehensive_test_case():
     singles_subject("T09", "S6_ELEC1", "C_S6", "R_S6", 3)
     singles_subject("T18", "S6_IEFD", "C_S6", "R_S6", 3)
     singles_subject("T04", "S6_CCW", "C_S6", "R_S6", 1)
-    triples_lab("T14", "S6_NETLAB", "C_S6", ["LAB1", "LAB2"])
-    triples_lab("T15", "S6_MINIP", "C_S6", ["LAB1", "LAB2"])
+    triples_lab(["T14","T13"], "S6_NETLAB", "C_S6", ["LAB1", "LAB2"])
+    triples_lab(["T15","T07"], "S6_MINIP", "C_S6", "LAB1")
 
     # ─────────── Lesson Blocks for Semester 8 ──────────────────────────────────
     singles_subject("T09", "S8_DC", "C_S8", "R_S8", 3)
@@ -188,4 +230,6 @@ def create_comprehensive_test_case():
     doubles_lab("T17", "S8_PROJECT", "C_S8", "LAB1")
     doubles_lab("T17", "S8_PROJECT", "C_S8", "LAB2")
 
+    #for l in lesson_blocks:
+    #    print(l.id, l.subject_id, l.is_locked)
     return teachers, subjects, rooms, classes, lesson_blocks
