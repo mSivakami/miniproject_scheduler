@@ -1,10 +1,6 @@
 import time
 from structures import Break
-from tt_cs_hhh import create_comprehensive_test_case
 from genetic import GeneticTimetableScheduler
-from printer import print_timetable
-from pdf_generation import generate_pdf_timetable
-from timetable_analyser import TimetableAnalyzer
 
 DAYS           = 5
 PERIODS_PER_DAY = 7

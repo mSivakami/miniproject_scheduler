@@ -1,8 +1,8 @@
 # ----------------------
 # Python (api)
 # ----------------------
-api/.venv/
-api/venv/
+.venv/
+venv/
 api/**pycache**/
 api/*.pyc
 api/*.pyo
