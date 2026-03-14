@@ -1,56 +1,46 @@
-# ----------------------
-# Python (api)
-# ----------------------
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
 .venv/
 venv/
-api/**pycache**/
-api/*.pyc
-api/*.pyo
-api/*.pyd
-api/.pytest_cache/
-api/.mypy_cache/
+ENV/
+env/
 
-# ----------------------
-# Node / React (Frontend)
-# ----------------------
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
-frontend/.cache/
-
-# ----------------------
-# Environment Variables
-# ----------------------
+# Environment variables
 .env
-api/.env
-frontend/.env
 .env.local
-.env.production
-.env.development
+.env.*.local
 
-# ----------------------
-# Logs
-# ----------------------
-*.log
+# Node
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# ----------------------
-# OS / System Files
-# ----------------------
+# Vite / frontend build
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
 Thumbs.db
 
-# ----------------------
-# IDE Files
-# ----------------------
-.vscode/
-.idea/
-
-# ----------------------
-# Build / Temporary
-# ----------------------
-*.tmp
-*.swp
-*.bak
+# Vercel
+.vercel/
