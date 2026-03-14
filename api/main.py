@@ -706,12 +706,14 @@ app = FastAPI(title="Timetable Scheduler API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",                    # local dev
+        # "https://your-app.vercel.app",              # production
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.on_event("startup")
 def startup():
