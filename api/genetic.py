@@ -33,11 +33,11 @@ class GeneticTimetableScheduler:
         )
 
         # GA hyper-parameters
-        self.population_size    = 200
-        self.generations        = 400
-        self.elite_size         = 15
+        self.population_size    = 100
+        self.generations        = 250
+        self.elite_size         = 10
         self.tournament_size    = 4
-        self.base_mutation_rate = 0.30
+        self.base_mutation_rate = 0.25
         self.mutation_rate      = self.base_mutation_rate
 
     # ── population ────────────────────────────────────────────────────────
