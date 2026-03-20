@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
 
 import db.session as store
-from db.session import get_db, SessionLocal
+from db.session import get_db
 from models.orm import (
     TeacherModel, TeacherUnavailableModel,
     SubjectModel, RoomModel, ClassModel,
@@ -18,11 +18,12 @@ from models.orm import (
     TimetableModel, TimetableEntryModel,
 )
 from schemas.api import (
-    BootstrapResponse, TeacherOut, SubjectOut, RoomOut, ClassOut, LessonOut,
     SaveAllRequest, SaveAllResponse,
-    GenerateResponse, JobStatusResponse, TimetableResultResponse, TimetableEntryOut,
+    GenerateResponse, JobStatusResponse,
+    TimetableResultResponse, TimetableEntryOut,
 )
 from services.generator import run_generation
+from services.mapper import get_db_lesson_id
 
 router = APIRouter()
 DB = Annotated[Session, Depends(get_db)]
@@ -57,20 +58,22 @@ def _lesson_out(l: LessonBlockModel) -> dict:
         "teacher_ids":         [t.id for t in l.teachers],
         "class_ids":           [c.id for c in l.classes],
         "room_ids":            [r.id for r in l.rooms],
-        "duration":            l.duration,
+        "sessions":            l.sessions or [],
         "is_locked":           l.is_locked,
         "locked_day":          l.locked_day,
         "locked_start_period": l.locked_start_period,
+        "locked_duration":     l.locked_duration,
+        # computed for display
+        "total_periods": sum(s["duration"] * s["count"] for s in (l.sessions or [])),
     }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# BOOTSTRAP  — single call loads everything
+# BOOTSTRAP
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/bootstrap", tags=["System"])
 def bootstrap():
-    """Return all entities in one response for frontend initial load."""
     return {
         "teachers": [_teacher_out(t) for t in store.get_teachers().values()],
         "subjects": list(store.get_subjects().values()),
@@ -81,7 +84,7 @@ def bootstrap():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# BATCH SAVE  — one transaction for all changes
+# BATCH SAVE
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/save-all", response_model=SaveAllResponse, tags=["Data"])
@@ -189,9 +192,13 @@ def save_all(body: SaveAllRequest, db: DB):
 
         for item in lc.added:
             lesson = LessonBlockModel(
-                id=_new_id(), subject_id=item.subject_id,
-                duration=item.duration, is_locked=item.is_locked,
-                locked_day=item.locked_day, locked_start_period=item.locked_start_period,
+                id          = _new_id(),
+                subject_id  = item.subject_id,
+                sessions    = [{"duration": s.duration, "count": s.count} for s in item.sessions],
+                is_locked   = item.is_locked,
+                locked_day          = item.locked_day,
+                locked_start_period = item.locked_start_period,
+                locked_duration     = item.locked_duration,
             )
             lesson.teachers = db.query(TeacherModel).filter(TeacherModel.id.in_(item.teacher_ids)).all()
             lesson.classes  = db.query(ClassModel).filter(ClassModel.id.in_(item.class_ids)).all()
@@ -203,9 +210,12 @@ def save_all(body: SaveAllRequest, db: DB):
             l = db.query(LessonBlockModel).filter(LessonBlockModel.id == lid).first()
             if not l:
                 raise HTTPException(404, f"Lesson {lid} not found")
-            l.subject_id=item.subject_id; l.duration=item.duration
-            l.is_locked=item.is_locked; l.locked_day=item.locked_day
-            l.locked_start_period=item.locked_start_period
+            l.subject_id          = item.subject_id
+            l.sessions            = [{"duration": s.duration, "count": s.count} for s in item.sessions]
+            l.is_locked           = item.is_locked
+            l.locked_day          = item.locked_day
+            l.locked_start_period = item.locked_start_period
+            l.locked_duration     = item.locked_duration
             l.teachers = db.query(TeacherModel).filter(TeacherModel.id.in_(item.teacher_ids)).all()
             l.classes  = db.query(ClassModel).filter(ClassModel.id.in_(item.class_ids)).all()
             l.rooms    = db.query(RoomModel).filter(RoomModel.id.in_(item.room_ids)).all()
@@ -217,9 +227,8 @@ def save_all(body: SaveAllRequest, db: DB):
                 db.delete(l)
                 counts["lessons"]["deleted"] += 1
 
-        # ── Commit and sync store ──────────────────────────────────────────
         db.commit()
-        _sync_store_after_save(db)
+        store.load_all(db)   # re-sync in-memory store
 
     except HTTPException:
         db.rollback()
@@ -234,11 +243,6 @@ def save_all(body: SaveAllRequest, db: DB):
     return SaveAllResponse(ok=True, counts=counts)
 
 
-def _sync_store_after_save(db: Session):
-    """Reload the in-memory store after a save. One DB round trip."""
-    store.load_all(db)
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # GENERATION
 # ══════════════════════════════════════════════════════════════════════════════
@@ -248,8 +252,6 @@ def generate(background_tasks: BackgroundTasks, db: DB):
     job = GenerationJobModel(id=_new_id(), status="pending")
     db.add(job)
     db.commit()
-    db.refresh(job)
-
     background_tasks.add_task(run_generation, job.id)
     return GenerateResponse(job_id=job.id)
 
@@ -260,11 +262,11 @@ def job_status(job_id: str, db: DB):
     if not job:
         raise HTTPException(404, "Job not found")
     return JobStatusResponse(
-        job_id=job.id,
-        status=job.status,
-        started_at=job.started_at.isoformat() if job.started_at else None,
-        finished_at=job.finished_at.isoformat() if job.finished_at else None,
-        error=job.error,
+        job_id                  = job.id,
+        status                  = job.status,
+        started_at              = job.started_at.isoformat() if job.started_at else None,
+        finished_at             = job.finished_at.isoformat() if job.finished_at else None,
+        error                   = job.error,
         generation_time_seconds = job.generation_time_seconds,
     )
 
@@ -287,11 +289,11 @@ def job_result(job_id: str, db: DB):
         .all()
     )
 
-    entry_out = []
     subjects_map = store.get_subjects()
+    entry_out = []
     for e in entries:
         lesson = e.lesson
-        subj = subjects_map.get(lesson.subject_id)
+        subj   = subjects_map.get(lesson.subject_id)
         entry_out.append(TimetableEntryOut(
             lesson_id    = lesson.id,
             day          = e.day,
@@ -305,9 +307,9 @@ def job_result(job_id: str, db: DB):
         ))
 
     return TimetableResultResponse(
-        timetable_id=tt.id,
-        fitness=tt.fitness,
-        entries=entry_out,
+        timetable_id = tt.id,
+        fitness      = tt.fitness,
+        entries      = entry_out,
     )
 
 
@@ -325,7 +327,6 @@ def health():
             "lessons":  store.get_lessons(),
         }.items()},
     }
-
 
 @router.post("/reload-store", tags=["System"])
 def reload_store(db: DB):

@@ -31,16 +31,24 @@ export interface Class {
   id: string;
   name: string;
 }
+
+export interface SessionSpec {
+  duration: 1 | 2 | 3; // periods per session
+  count: number; // times per week
+}
+
 export interface Lesson {
   id: string;
   subject_id: string;
   teacher_ids: string[];
   class_ids: string[];
   room_ids: string[];
-  duration: number;
+  sessions: SessionSpec[]; // e.g. [{duration:1,count:3},{duration:2,count:1}]
   is_locked: boolean;
   locked_day: number | null;
   locked_start_period: number | null;
+  locked_duration: number | null;
+  total_periods?: number; // computed by server, display only
 }
 
 export interface TimetableEntry {
@@ -71,34 +79,29 @@ interface GenerationState {
     entries: TimetableEntry[];
     generationTime: number | null;
   } | null;
-  generationTime: number | null;
 }
 
 interface AppState {
-  // ── Data ──────────────────────────────────────────────────
   teachers: Teacher[];
   subjects: Subject[];
   rooms: Room[];
   classes: Class[];
   lessons: Lesson[];
 
-  // ── Pending changes (cleared on save) ────────────────────
   changes: {
     teachers: Changes<Omit<Teacher, "id">>;
     subjects: Changes<Omit<Subject, "id">>;
     rooms: Changes<Omit<Room, "id">>;
     classes: Changes<Omit<Class, "id">>;
-    lessons: Changes<Omit<Lesson, "id">>;
+    lessons: Changes<Omit<Lesson, "id" | "total_periods">>;
   };
 
-  // ── UI state ──────────────────────────────────────────────
   loading: boolean;
   saving: boolean;
   saveError: string | null;
   generation: GenerationState;
   bootstrapped: boolean;
 
-  // ── Actions ───────────────────────────────────────────────
   setBootstrap: (data: any) => void;
   setLoading: (v: boolean) => void;
   setSaving: (v: boolean) => void;
@@ -106,7 +109,6 @@ interface AppState {
   clearChanges: () => void;
   hasChanges: () => boolean;
 
-  // Entity actions
   addTeacher: (t: Omit<Teacher, "id">) => string;
   updateTeacher: (id: string, t: Partial<Teacher>) => void;
   deleteTeacher: (id: string) => void;
@@ -123,25 +125,30 @@ interface AppState {
   updateClass: (id: string, c: Partial<Class>) => void;
   deleteClass: (id: string) => void;
 
-  addLesson: (l: Omit<Lesson, "id">) => string;
+  addLesson: (l: Omit<Lesson, "id" | "total_periods">) => string;
   updateLesson: (id: string, l: Partial<Lesson>) => void;
   deleteLesson: (id: string) => void;
 
-  // Generation actions
   setJobId: (id: string) => void;
   setGenStatus: (s: GenerationState["status"], error?: string) => void;
   setTimetable: (tt: GenerationState["timetable"]) => void;
 }
 
-// ── Temp ID generator (replaced by real ID after save) ───────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 let _seq = 0;
 const tempId = () => `tmp_${++_seq}_${Date.now()}`;
-
 const emptyChanges = <T>(): Changes<T> => ({
   added: [],
   updated: {},
   deleted: [],
 });
+
+export const totalPeriods = (sessions: SessionSpec[]) =>
+  sessions.reduce((sum, s) => sum + s.duration * s.count, 0);
+
+export const sessionSummary = (sessions: SessionSpec[]) =>
+  sessions.map((s) => `${s.count}×${s.duration}p`).join(" + ");
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
@@ -164,15 +171,8 @@ export const useAppStore = create<AppState>()(
       saving: false,
       saveError: null,
       bootstrapped: false,
-      generation: {
-        jobId: null,
-        status: "idle",
-        error: null,
-        timetable: null,
-        generationTime: null,
-      },
+      generation: { jobId: null, status: "idle", error: null, timetable: null },
 
-      // ── Bootstrap ────────────────────────────────────────
       setBootstrap: (data) =>
         set((s) => {
           s.teachers = data.teachers ?? [];
@@ -229,21 +229,19 @@ export const useAppStore = create<AppState>()(
       updateTeacher: (id, t) =>
         set((s) => {
           const idx = s.teachers.findIndex((x) => x.id === id);
-          if (idx !== -1) Object.assign(s.teachers[idx], t);
-          const isNew = s.changes.teachers.added.find(
-            (x) => (x as any).id === id,
-          );
-          if (!isNew) s.changes.teachers.updated[id] = { ...s.teachers[idx] };
+          if (idx !== -1) {
+            Object.assign(s.teachers[idx], t);
+            s.changes.teachers.updated[id] = { ...s.teachers[idx] };
+          }
         }),
       deleteTeacher: (id) =>
         set((s) => {
           s.teachers = s.teachers.filter((x) => x.id !== id);
-          const addedIdx = s.changes.teachers.added.findIndex(
+          const ai = s.changes.teachers.added.findIndex(
             (x: any) => x.id === id,
           );
-          if (addedIdx !== -1) {
-            s.changes.teachers.added.splice(addedIdx, 1);
-          } else {
+          if (ai !== -1) s.changes.teachers.added.splice(ai, 1);
+          else {
             delete s.changes.teachers.updated[id];
             s.changes.teachers.deleted.push(id);
           }
@@ -363,7 +361,6 @@ export const useAppStore = create<AppState>()(
     {
       name: "timetable-app-store",
       storage: createJSONStorage(() => localStorage),
-      // Only persist data — not UI state
       partialize: (s) => ({
         teachers: s.teachers,
         subjects: s.subjects,

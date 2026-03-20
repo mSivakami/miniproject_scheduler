@@ -6,21 +6,20 @@ Called via FastAPI BackgroundTasks — never blocks the HTTP response.
 """
 from __future__ import annotations
 import uuid
+import time
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from db.session import SessionLocal
 from models.orm import GenerationJobModel, TimetableModel, TimetableEntryModel
-from services.mapper import fetch_and_map
+from services.mapper import fetch_and_map, get_db_lesson_id
 from genetic import GeneticTimetableScheduler
 from structures import Break
-import time
-    
+
 DAYS            = 5
 PERIODS_PER_DAY = 7
 
-# Mon–Thu break at period 3, Fri at period 4
 def _make_breaks() -> dict:
     breaks = {}
     for day in range(DAYS - 1):
@@ -30,14 +29,6 @@ def _make_breaks() -> dict:
 
 
 def run_generation(job_id: str):
-    """
-    Blocking function — call from a thread pool (BackgroundTasks or Celery).
-    1. Marks job as running.
-    2. Fetches data from in-memory store (zero DB round trips).
-    3. Runs the GA.
-    4. Persists result.
-    5. Marks job as done (or failed).
-    """
     db: Session = SessionLocal()
     try:
         # ── Mark running ──────────────────────────────────────────────────
@@ -55,6 +46,7 @@ def run_generation(job_id: str):
             raise ValueError("No lesson blocks configured — nothing to schedule.")
 
         # ── Run GA ────────────────────────────────────────────────────────
+        ga_start = time.time()
         scheduler = GeneticTimetableScheduler(
             teachers=teachers,
             subjects=subjects,
@@ -65,17 +57,9 @@ def run_generation(job_id: str):
             periods_per_day=PERIODS_PER_DAY,
             breaks=_make_breaks(),
         )
-        ga_start = time.time()
         best_tt, history = scheduler.evolve()
         ga_seconds = round(time.time() - ga_start, 2)
-
         final_fitness = history[-1] if history else 0
-
-        # then when marking done:
-        job.status              = "done"
-        job.finished_at         = datetime.now(timezone.utc)
-        job.generation_time_seconds = ga_seconds
-        db.commit()
 
         # ── Persist timetable ─────────────────────────────────────────────
         tt_id = str(uuid.uuid4())
@@ -87,18 +71,22 @@ def run_generation(job_id: str):
             ts = best_tt.get_assignment(lesson.id)
             if ts is None:
                 continue
+            # Strip GA suffix back to DB lesson ID
+            # e.g. L0001_locked → L0001,  L0006_2 → L0006
+            db_lesson_id = get_db_lesson_id(lesson.id)
             db.add(TimetableEntryModel(
                 id           = str(uuid.uuid4()),
                 timetable_id = tt_id,
-                lesson_id    = lesson.id,
+                lesson_id    = db_lesson_id,
                 day          = ts.day,
                 start_period = ts.start_period,
                 duration     = ts.duration,
             ))
 
         # ── Mark done ─────────────────────────────────────────────────────
-        job.status      = "done"
-        job.finished_at = datetime.now(timezone.utc)
+        job.status                  = "done"
+        job.finished_at             = datetime.now(timezone.utc)
+        job.generation_time_seconds = ga_seconds
         db.commit()
 
     except Exception as exc:
