@@ -15,7 +15,8 @@ from models.orm import GenerationJobModel, TimetableModel, TimetableEntryModel
 from services.mapper import fetch_and_map
 from genetic import GeneticTimetableScheduler
 from structures import Break
-
+import time
+    
 DAYS            = 5
 PERIODS_PER_DAY = 7
 
@@ -64,8 +65,17 @@ def run_generation(job_id: str):
             periods_per_day=PERIODS_PER_DAY,
             breaks=_make_breaks(),
         )
+        ga_start = time.time()
         best_tt, history = scheduler.evolve()
+        ga_seconds = round(time.time() - ga_start, 2)
+
         final_fitness = history[-1] if history else 0
+
+        # then when marking done:
+        job.status              = "done"
+        job.finished_at         = datetime.now(timezone.utc)
+        job.generation_time_seconds = ga_seconds
+        db.commit()
 
         # ── Persist timetable ─────────────────────────────────────────────
         tt_id = str(uuid.uuid4())

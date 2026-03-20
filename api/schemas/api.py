@@ -127,6 +127,7 @@ class JobStatusResponse(BaseModel):
     started_at:  Optional[str] = None
     finished_at: Optional[str] = None
     error:       Optional[str] = None
+    generation_time_seconds: Optional[float] = None
 
 class TimetableEntryOut(BaseModel):
     lesson_id:    str

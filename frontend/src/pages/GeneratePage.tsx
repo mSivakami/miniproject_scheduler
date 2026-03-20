@@ -260,6 +260,32 @@ export default function GeneratePage() {
                 )}
               </div>
             </div>
+            <div style={{ textAlign: "center" }}>
+              <div className="fitness-label">TIME TAKEN</div>
+              <div
+                style={{
+                  fontFamily: "var(--mono)",
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: "var(--text)",
+                  marginTop: 4,
+                }}
+              >
+                {timetable.generationTime !== null
+                  ? `${timetable.generationTime}s`
+                  : "—"}
+              </div>
+              <div
+                style={{
+                  fontFamily: "var(--mono)",
+                  fontSize: 10,
+                  color: "var(--text3)",
+                  marginTop: 2,
+                }}
+              >
+                ga runtime
+              </div>
+            </div>
           </div>
         )}
 

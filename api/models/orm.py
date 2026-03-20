@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, String, Integer, Boolean, Text,
+    Column, String, Integer, Boolean, Text, Float,
     ForeignKey, Table, CheckConstraint, TIMESTAMP
 )
 from sqlalchemy.orm import declarative_base, relationship
@@ -115,6 +115,7 @@ class GenerationJobModel(Base):
     finished_at = Column(TIMESTAMP(timezone=True), nullable=True)
     error       = Column(Text, nullable=True)
     created_at  = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    generation_time_seconds = Column(Float, nullable=True)
 
     timetables = relationship("TimetableModel", back_populates="job", cascade="all, delete-orphan")
 

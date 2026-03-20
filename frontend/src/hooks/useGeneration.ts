@@ -35,6 +35,7 @@ export function useGeneration() {
               id: result.timetable_id,
               fitness: result.fitness,
               entries: result.entries,
+              generationTime: status.generation_time_seconds ?? null,
             });
           } else if (status.status === "failed") {
             stopPolling();

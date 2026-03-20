@@ -265,6 +265,7 @@ def job_status(job_id: str, db: DB):
         started_at=job.started_at.isoformat() if job.started_at else None,
         finished_at=job.finished_at.isoformat() if job.finished_at else None,
         error=job.error,
+        generation_time_seconds = job.generation_time_seconds,
     )
 
 

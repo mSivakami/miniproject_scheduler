@@ -65,7 +65,13 @@ interface GenerationState {
   jobId: string | null;
   status: "idle" | "pending" | "running" | "done" | "failed";
   error: string | null;
-  timetable: { id: string; fitness: number; entries: TimetableEntry[] } | null;
+  timetable: {
+    id: string;
+    fitness: number;
+    entries: TimetableEntry[];
+    generationTime: number | null;
+  } | null;
+  generationTime: number | null;
 }
 
 interface AppState {
@@ -158,7 +164,13 @@ export const useAppStore = create<AppState>()(
       saving: false,
       saveError: null,
       bootstrapped: false,
-      generation: { jobId: null, status: "idle", error: null, timetable: null },
+      generation: {
+        jobId: null,
+        status: "idle",
+        error: null,
+        timetable: null,
+        generationTime: null,
+      },
 
       // ── Bootstrap ────────────────────────────────────────
       setBootstrap: (data) =>
