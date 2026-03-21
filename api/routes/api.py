@@ -19,14 +19,13 @@ from models.orm import (
     TeacherModel, TeacherUnavailableModel,
     SubjectModel, RoomModel, ClassModel,
     LessonBlockModel, GenerationJobModel,
-    TimetableModel, TimetableEntryModel,
 )
 from schemas.api import (
     SaveAllRequest, SaveAllResponse,
     GenerateResponse, JobStatusResponse,
     TimetableResultResponse, TimetableEntryOut,
 )
-from services.generator import run_generation
+from services.generator import run_generation, get_result
 from services.mapper import get_db_lesson_id
 
 router = APIRouter()
@@ -326,6 +325,7 @@ def job_status(job_id: str, user: User, db: DB):
 @router.get("/result/{job_id}", response_model=TimetableResultResponse, tags=["Generation"])
 def job_result(job_id: str, user: User, db: DB):
     uid = user["id"]
+    # Verify job belongs to this user
     job = db.query(GenerationJobModel).filter(
         GenerationJobModel.id == job_id,
         GenerationJobModel.user_id == uid,
@@ -333,58 +333,15 @@ def job_result(job_id: str, user: User, db: DB):
     if not job:
         raise HTTPException(404, "Job not found")
 
-    tt = (
-        db.query(TimetableModel)
-        .filter(TimetableModel.job_id == job_id)
-        .order_by(TimetableModel.created_at.desc())
-        .first()
-    )
-    if not tt:
+    # Result lives in memory — never written to DB
+    result = get_result(job_id)
+    if not result:
         raise HTTPException(404, "Result not ready")
 
-    # Load subjects as plain dicts while session is open — avoids DetachedInstanceError
-    subjects_raw = db.query(SubjectModel).filter(SubjectModel.user_id == uid).all()
-    subjects_map = {s.id: s.name for s in subjects_raw}
-
-    entries = (
-        db.query(TimetableEntryModel)
-        .filter(TimetableEntryModel.timetable_id == tt.id)
-        .options(
-            selectinload(TimetableEntryModel.lesson).selectinload(LessonBlockModel.teachers),
-            selectinload(TimetableEntryModel.lesson).selectinload(LessonBlockModel.classes),
-            selectinload(TimetableEntryModel.lesson).selectinload(LessonBlockModel.rooms),
-        )
-        .all()
-    )
-
-    # Extract all data while session is still open
-    tt_id      = tt.id
-    tt_fitness = tt.fitness
-
-    entry_out = []
-    for e in entries:
-        lesson      = e.lesson
-        subject_id  = lesson.subject_id
-        subject_name = subjects_map.get(subject_id, subject_id)
-        teacher_ids = [t.id for t in lesson.teachers]
-        class_ids   = [c.id for c in lesson.classes]
-        room_ids    = [r.id for r in lesson.rooms]
-        entry_out.append(TimetableEntryOut(
-            lesson_id    = lesson.id,
-            day          = e.day,
-            start_period = e.start_period,
-            duration     = e.duration,
-            subject_id   = subject_id,
-            subject_name = subject_name,
-            teacher_ids  = teacher_ids,
-            class_ids    = class_ids,
-            room_ids     = room_ids,
-        ))
-
     return TimetableResultResponse(
-        timetable_id = tt_id,
-        fitness      = tt_fitness,
-        entries      = entry_out,
+        timetable_id = result["timetable_id"],
+        fitness      = result["fitness"],
+        entries      = [TimetableEntryOut(**e) for e in result["entries"]],
     )
 
 

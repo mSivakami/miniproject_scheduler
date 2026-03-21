@@ -66,8 +66,14 @@ function MainApp({ userEmail }: { userEmail: string }) {
   useBootstrap();
   const { save } = useSave();
   const navigate = useNavigate();
-  const { loading, saving, saveError, hasChanges, clearChanges } =
-    useAppStore();
+  const {
+    loading,
+    saving,
+    saveError,
+    hasChanges,
+    clearChanges,
+    resetGeneration,
+  } = useAppStore();
   const [page, setPage] = useState<Page>("teachers");
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
@@ -82,6 +88,7 @@ function MainApp({ userEmail }: { userEmail: string }) {
   const handleLogout = async () => {
     await authClient.signOut();
     clearChanges();
+    resetGeneration();
     localStorage.removeItem("timetable-app-store");
     navigate("/auth/sign-in", { replace: true });
   };

@@ -131,6 +131,7 @@ interface AppState {
   setJobId: (id: string) => void;
   setGenStatus: (s: GenerationState["status"], error?: string) => void;
   setTimetable: (tt: GenerationState["timetable"]) => void;
+  resetGeneration: () => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -354,6 +355,15 @@ export const useAppStore = create<AppState>()(
         set((s) => {
           s.generation.timetable = tt;
         }),
+      resetGeneration: () =>
+        set((s) => {
+          s.generation = {
+            jobId: null,
+            status: "idle",
+            error: null,
+            timetable: null,
+          };
+        }),
     })),
     {
       name: "timetable-app-store",
@@ -362,10 +372,10 @@ export const useAppStore = create<AppState>()(
       // Server data is always fetched fresh on mount via useBootstrap.
       // This prevents stale tmp_ IDs from persisting across sessions.
       partialize: (s) => ({
+        // Only persist unsaved edits — everything else resets on reload.
+        // Timetable results, generation state, and server data are session-only.
         changes: s.changes,
-        generation: s.generation,
       }),
     },
   ),
 );
-  

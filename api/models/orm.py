@@ -144,26 +144,3 @@ class GenerationJobModel(Base):
     error                   = Column(Text,  nullable=True)
     generation_time_seconds = Column(Float, nullable=True)
     created_at              = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    timetables = relationship("TimetableModel", back_populates="job", cascade="all, delete-orphan")
-
-
-class TimetableModel(Base):
-    __tablename__ = "timetables"
-    id         = Column(String,  primary_key=True)
-    job_id     = Column(String,  ForeignKey("generation_jobs.id", ondelete="CASCADE"), nullable=False)
-    fitness    = Column(Integer, nullable=False)
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    job     = relationship("GenerationJobModel", back_populates="timetables")
-    entries = relationship("TimetableEntryModel", back_populates="timetable", cascade="all, delete-orphan")
-
-
-class TimetableEntryModel(Base):
-    __tablename__ = "timetable_entries"
-    id           = Column(String,  primary_key=True)
-    timetable_id = Column(String,  ForeignKey("timetables.id",    ondelete="CASCADE"), nullable=False)
-    lesson_id    = Column(String,  ForeignKey("lesson_blocks.id", ondelete="CASCADE"), nullable=False)
-    day          = Column(Integer, nullable=False)
-    start_period = Column(Integer, nullable=False)
-    duration     = Column(Integer, nullable=False)
-    timetable = relationship("TimetableModel",  back_populates="entries")
-    lesson    = relationship("LessonBlockModel")

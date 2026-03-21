@@ -26,23 +26,40 @@ function qualityLabel(fitness: number) {
   return { label: "NEEDS WORK", cls: "chip-red" };
 }
 
+// ── Timetable grid ─────────────────────────────────────────────────────────
+
 function TimetableGrid({
   entries,
+  teachers,
   classes,
-  filterClassId,
+  rooms,
+  mode,
+  filterId,
 }: {
   entries: TimetableEntry[];
+  teachers: { id: string; name: string }[];
   classes: { id: string; name: string }[];
-  filterClassId: string;
+  rooms: { id: string; name: string }[];
+  mode: "class" | "teacher" | "room";
+  filterId: string;
 }) {
-  // Build grid: day → start_period → entries
+  const filtered = entries.filter((e) => {
+    if (!filterId) return true;
+    if (mode === "class") return e.class_ids.includes(filterId);
+    if (mode === "teacher") return e.teacher_ids.includes(filterId);
+    if (mode === "room") return e.room_ids.includes(filterId);
+    return true;
+  });
+
   const grid: Record<number, Record<number, TimetableEntry[]>> = {};
-  for (const e of entries) {
-    if (filterClassId && !e.class_ids.includes(filterClassId)) continue;
+  for (const e of filtered) {
     if (!grid[e.day]) grid[e.day] = {};
     if (!grid[e.day][e.start_period]) grid[e.day][e.start_period] = [];
     grid[e.day][e.start_period].push(e);
   }
+
+  const nameOf = (id: string, list: { id: string; name: string }[]) =>
+    list.find((x) => x.id === id)?.name ?? id;
 
   return (
     <div className="tt-grid-wrapper">
@@ -91,21 +108,18 @@ function TimetableGrid({
                   );
                 }
                 const cellEntries = grid[d]?.[p] ?? [];
-                // Check if this period is covered by a multi-period lesson starting earlier
-                const isContinuation = PERIODS.slice(0, p).some((prevP) => {
-                  const prevEntries = grid[d]?.[prevP] ?? [];
-                  return prevEntries.some(
+                const isContinuation = PERIODS.slice(0, p).some((prevP) =>
+                  (grid[d]?.[prevP] ?? []).some(
                     (e) => e.start_period + e.duration > p,
-                  );
-                });
-                if (isContinuation && cellEntries.length === 0) {
+                  ),
+                );
+                if (isContinuation && cellEntries.length === 0)
                   return (
                     <td
                       key={d}
                       style={{ background: "var(--accent-dim)", opacity: 0.4 }}
                     />
                   );
-                }
                 return (
                   <td key={d}>
                     {cellEntries.length === 0 ? (
@@ -114,14 +128,33 @@ function TimetableGrid({
                       cellEntries.map((e, i) => (
                         <div key={i} className="tt-cell occupied">
                           <div className="tt-subject">{e.subject_name}</div>
-                          <div className="tt-meta">
-                            {e.class_ids
-                              .map(
-                                (id) =>
-                                  classes.find((c) => c.id === id)?.name ?? id,
-                              )
-                              .join(", ")}
-                          </div>
+                          {mode !== "class" && e.class_ids.length > 0 && (
+                            <div className="tt-meta">
+                              {e.class_ids
+                                .map((id) => nameOf(id, classes))
+                                .join(", ")}
+                            </div>
+                          )}
+                          {mode !== "teacher" && e.teacher_ids.length > 0 && (
+                            <div
+                              className="tt-meta"
+                              style={{ color: "var(--text3)" }}
+                            >
+                              {e.teacher_ids
+                                .map((id) => nameOf(id, teachers))
+                                .join(", ")}
+                            </div>
+                          )}
+                          {mode !== "room" && e.room_ids.length > 0 && (
+                            <div
+                              className="tt-meta"
+                              style={{ color: "var(--text3)" }}
+                            >
+                              {e.room_ids
+                                .map((id) => nameOf(id, rooms))
+                                .join(", ")}
+                            </div>
+                          )}
                           {e.duration > 1 && (
                             <div
                               className="tt-meta"
@@ -144,12 +177,25 @@ function TimetableGrid({
   );
 }
 
+// ── Main page ──────────────────────────────────────────────────────────────
+
+type ViewMode = "class" | "teacher" | "room";
+
 export default function GeneratePage() {
   const { generate, status, error, timetable, isRunning } = useGeneration();
-  const { lessons, classes } = useAppStore();
-  const [filterClass, setFilterClass] = useState("");
+  const { lessons, teachers, classes, rooms } = useAppStore();
+
+  const [mode, setMode] = useState<ViewMode>("class");
+  const [filterId, setFilterId] = useState("");
+
+  const handleMode = (m: ViewMode) => {
+    setMode(m);
+    setFilterId("");
+  };
 
   const quality = timetable ? qualityLabel(timetable.fitness) : null;
+  const filterList =
+    mode === "class" ? classes : mode === "teacher" ? teachers : rooms;
 
   return (
     <div>
@@ -178,7 +224,7 @@ export default function GeneratePage() {
       </div>
 
       <div className="page-body">
-        {/* Status banner */}
+        {/* Status */}
         <div className={`gen-status ${status}`}>
           {isRunning && (
             <span className="spinner" style={{ width: 14, height: 14 }} />
@@ -190,7 +236,7 @@ export default function GeneratePage() {
           {status === "failed" && `✗ Generation failed: ${error}`}
         </div>
 
-        {/* Stats card */}
+        {/* Stats */}
         {timetable && (
           <div className="gen-card" style={{ marginBottom: 20 }}>
             <div
@@ -198,6 +244,7 @@ export default function GeneratePage() {
                 display: "flex",
                 alignItems: "flex-start",
                 justifyContent: "space-between",
+                gap: 24,
               }}
             >
               <div>
@@ -216,11 +263,9 @@ export default function GeneratePage() {
                     fontFamily: "var(--mono)",
                     fontSize: 10,
                     color: "var(--text3)",
-                    maxWidth: 320,
                   }}
                 >
-                  Lower score = better. 0 = constraint-perfect. Soft constraints
-                  (balance, gaps) accumulate the remaining score.
+                  Lower = better. 0 = constraint-perfect.
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
@@ -259,85 +304,122 @@ export default function GeneratePage() {
                   </div>
                 )}
               </div>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div className="fitness-label">TIME TAKEN</div>
-              <div
-                style={{
-                  fontFamily: "var(--mono)",
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: "var(--text)",
-                  marginTop: 4,
-                }}
-              >
-                {timetable.generationTime !== null
-                  ? `${timetable.generationTime}s`
-                  : "—"}
-              </div>
-              <div
-                style={{
-                  fontFamily: "var(--mono)",
-                  fontSize: 10,
-                  color: "var(--text3)",
-                  marginTop: 2,
-                }}
-              >
-                ga runtime
+              <div style={{ textAlign: "right" }}>
+                <div className="fitness-label">TIME TAKEN</div>
+                <div
+                  style={{
+                    fontFamily: "var(--mono)",
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color: "var(--text)",
+                    marginTop: 4,
+                  }}
+                >
+                  {timetable.generationTime !== null
+                    ? `${timetable.generationTime}s`
+                    : "—"}
+                </div>
+                <div
+                  style={{
+                    fontFamily: "var(--mono)",
+                    fontSize: 10,
+                    color: "var(--text3)",
+                    marginTop: 2,
+                  }}
+                >
+                  ga runtime
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Timetable grid */}
+        {/* Grid */}
         {timetable && timetable.entries.length > 0 && (
           <div className="gen-card">
+            {/* Tabs + filter */}
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
+                gap: 8,
                 marginBottom: 16,
+                flexWrap: "wrap",
               }}
             >
-              <div
+              <div style={{ display: "flex", gap: 4 }}>
+                {(["class", "teacher", "room"] as ViewMode[]).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => handleMode(m)}
+                    style={{
+                      padding: "5px 14px",
+                      borderRadius: "var(--radius)",
+                      border: "1px solid var(--border2)",
+                      background: mode === m ? "var(--accent)" : "var(--bg3)",
+                      color: mode === m ? "#fff" : "var(--text2)",
+                      fontFamily: "var(--mono)",
+                      fontSize: 11,
+                      cursor: "pointer",
+                      fontWeight: mode === m ? 600 : 400,
+                    }}
+                  >
+                    {m === "class"
+                      ? "🎓 By Class"
+                      : m === "teacher"
+                        ? "👤 By Teacher"
+                        : "🏫 By Room"}
+                  </button>
+                ))}
+              </div>
+
+              <select
+                className="form-select"
                 style={{
-                  fontFamily: "var(--mono)",
+                  width: 200,
+                  padding: "5px 10px",
                   fontSize: 12,
-                  color: "var(--text2)",
+                  marginLeft: "auto",
                 }}
+                value={filterId}
+                onChange={(e) => setFilterId(e.target.value)}
               >
-                TIMETABLE GRID
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span
-                  style={{
-                    fontFamily: "var(--mono)",
-                    fontSize: 10,
-                    color: "var(--text3)",
-                  }}
-                >
-                  FILTER
-                </span>
-                <select
-                  className="form-select"
-                  style={{ width: 160, padding: "5px 10px", fontSize: 12 }}
-                  value={filterClass}
-                  onChange={(e) => setFilterClass(e.target.value)}
-                >
-                  <option value="">All classes</option>
-                  {classes.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <option value="">
+                  All{" "}
+                  {mode === "class"
+                    ? "classes"
+                    : mode === "teacher"
+                      ? "teachers"
+                      : "rooms"}
+                </option>
+                {filterList.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            <div
+              style={{
+                fontFamily: "var(--mono)",
+                fontSize: 10,
+                color: "var(--text3)",
+                marginBottom: 12,
+              }}
+            >
+              {filterId
+                ? `TIMETABLE — ${filterList.find((x) => x.id === filterId)?.name?.toUpperCase()}`
+                : `TIMETABLE — ALL ${mode.toUpperCase()}S`}
+            </div>
+
             <TimetableGrid
               entries={timetable.entries}
+              teachers={teachers}
               classes={classes}
-              filterClassId={filterClass}
+              rooms={rooms}
+              mode={mode}
+              filterId={filterId}
             />
           </div>
         )}

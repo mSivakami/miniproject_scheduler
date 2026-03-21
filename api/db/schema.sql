@@ -9,7 +9,7 @@
 -- ── Drop everything cleanly ───────────────────────────────────
 
 DROP TABLE IF EXISTS
-    timetable_entries, timetables, generation_jobs,
+    generation_jobs,
     lesson_rooms, lesson_classes, lesson_teachers,
     lesson_blocks, teacher_unavailable,
     teachers, subjects, rooms, classes
@@ -106,23 +106,8 @@ CREATE TABLE generation_jobs (
     created_at              TIMESTAMPTZ DEFAULT now()
 );
 
--- ── Timetable results ────────────────────────────────────────
-
-CREATE TABLE timetables (
-    id         TEXT    PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    job_id     TEXT    NOT NULL REFERENCES generation_jobs(id) ON DELETE CASCADE,
-    fitness    INTEGER NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE timetable_entries (
-    id           TEXT    PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    timetable_id TEXT    NOT NULL REFERENCES timetables(id)    ON DELETE CASCADE,
-    lesson_id    TEXT    NOT NULL REFERENCES lesson_blocks(id) ON DELETE CASCADE,
-    day          INTEGER NOT NULL CHECK (day BETWEEN 0 AND 4),
-    start_period INTEGER NOT NULL CHECK (start_period BETWEEN 0 AND 6),
-    duration     INTEGER NOT NULL CHECK (duration BETWEEN 1 AND 3)
-);
+-- Timetable results are stored in memory only (not in DB).
+-- See services/generator.py — results live in _results dict for the session.
 
 -- ── Indexes ──────────────────────────────────────────────────
 
@@ -136,7 +121,4 @@ CREATE INDEX idx_lesson_teachers_lesson ON lesson_teachers(lesson_id);
 CREATE INDEX idx_lesson_classes_lesson  ON lesson_classes(lesson_id);
 CREATE INDEX idx_lesson_rooms_lesson    ON lesson_rooms(lesson_id);
 
-CREATE INDEX idx_timetable_entries_tt   ON timetable_entries(timetable_id);
-CREATE INDEX idx_timetable_entries_day  ON timetable_entries(day, start_period);
-
-CREATE INDEX idx_jobs_status            ON generation_jobs(status);
+CREATE INDEX idx_jobs_status ON generation_jobs(status);

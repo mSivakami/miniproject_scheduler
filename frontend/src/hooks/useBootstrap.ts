@@ -7,8 +7,6 @@ export function useBootstrap() {
   const { setBootstrap, setLoading } = useAppStore();
 
   useEffect(() => {
-    // Always fetch fresh from server on mount — never rely on localStorage
-    // for server-assigned IDs. localStorage is only for UI state.
     setLoading(true);
     fetchBootstrap()
       .then(setBootstrap)
@@ -25,20 +23,52 @@ export function useSave() {
     setSaving(true);
     setSaveError(null);
     try {
-      // Strip temp IDs from added items — backend assigns real UUIDs
-      const payload = {
+      // ── PASS 1: Save teachers, subjects, rooms, classes ────────────────
+      // Must commit these first so their real DB IDs exist
+      // before lessons reference them as foreign keys.
+      const pass1 = {
         teachers: sanitize(changes.teachers),
         subjects: sanitize(changes.subjects),
         rooms: sanitize(changes.rooms),
         classes: sanitize(changes.classes),
-        lessons: sanitize(changes.lessons),
+        lessons: emptyChanges(),
       };
-      await saveAll(payload);
 
-      // Always re-bootstrap after save so frontend gets real server IDs.
-      // This replaces all tmp_ IDs with real UUIDs from the DB.
+      const hasPass1 = hasAnyChanges(pass1);
+      if (hasPass1) {
+        await saveAll(pass1);
+      }
+
+      // ── Re-bootstrap to replace tmp_ IDs with real DB UUIDs ───────────
       const fresh = await fetchBootstrap();
       setBootstrap(fresh);
+
+      // ── PASS 2: Save lessons with resolved real IDs ────────────────────
+      // Get latest changes from store (subjects may have been cleared)
+      const latestChanges = useAppStore.getState().changes;
+
+      const resolvedLessons = resolveLessonIds(
+        latestChanges.lessons,
+        fresh.subjects ?? [],
+        fresh.teachers ?? [],
+        fresh.rooms ?? [],
+        fresh.classes ?? [],
+      );
+
+      const hasPass2 = hasAnyChanges({ lessons: resolvedLessons });
+      if (hasPass2) {
+        await saveAll({
+          teachers: emptyChanges(),
+          subjects: emptyChanges(),
+          rooms: emptyChanges(),
+          classes: emptyChanges(),
+          lessons: resolvedLessons,
+        });
+      }
+
+      // ── Final bootstrap to get real lesson IDs ─────────────────────────
+      const final = await fetchBootstrap();
+      setBootstrap(final);
       clearChanges();
     } catch (e: any) {
       setSaveError(e.message);
@@ -50,16 +80,90 @@ export function useSave() {
   return { save };
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function emptyChanges() {
+  return { added: [], updated: {}, deleted: [] };
+}
+
+function hasAnyChanges(payload: Record<string, any>): boolean {
+  return Object.values(payload).some(
+    (c) =>
+      c.added.length > 0 ||
+      Object.keys(c.updated).length > 0 ||
+      c.deleted.length > 0,
+  );
+}
+
 function sanitize(changes: any) {
   return {
-    added: changes.added.map(stripTempId),
+    added: changes.added.map(stripId),
     updated: changes.updated,
-    // Never send tmp_ IDs as deleted — they were never saved to DB
     deleted: changes.deleted.filter((id: string) => !id.startsWith("tmp_")),
   };
 }
 
-function stripTempId(item: any) {
+function stripId(item: any) {
   const { id, ...rest } = item;
   return rest;
+}
+
+/**
+ * Resolve tmp_ IDs in lesson foreign key fields.
+ * After pass 1 + bootstrap, all entities have real UUIDs.
+ * Any lesson referencing a tmp_ subject_id means that subject
+ * was just saved — we find the real ID from the fresh bootstrap data.
+ * Lessons whose subject still resolves to tmp_ are skipped.
+ */
+function resolveLessonIds(
+  lessonChanges: any,
+  freshSubjects: any[],
+  freshTeachers: any[],
+  freshRooms: any[],
+  freshClasses: any[],
+) {
+  const subjectIds = new Set(freshSubjects.map((x: any) => x.id));
+  const teacherIds = new Set(freshTeachers.map((x: any) => x.id));
+  const roomIds = new Set(freshRooms.map((x: any) => x.id));
+  const classIds = new Set(freshClasses.map((x: any) => x.id));
+
+  // Filter a list of IDs — drop any tmp_ ones (not saved yet)
+  const resolveIds = (ids: string[], valid: Set<string>): string[] =>
+    ids.filter((id) => !id.startsWith("tmp_") && valid.has(id));
+
+  const added = lessonChanges.added
+    .map((l: any) => {
+      // Skip lesson if subject_id is still tmp_ (subject not saved)
+      if (l.subject_id?.startsWith("tmp_")) return null;
+      if (!subjectIds.has(l.subject_id)) return null;
+
+      const { id, ...rest } = l;
+      return {
+        ...rest,
+        subject_id: l.subject_id,
+        teacher_ids: resolveIds(l.teacher_ids ?? [], teacherIds),
+        class_ids: resolveIds(l.class_ids ?? [], classIds),
+        room_ids: resolveIds(l.room_ids ?? [], roomIds),
+      };
+    })
+    .filter(Boolean);
+
+  const updated: Record<string, any> = {};
+  for (const [id, l] of Object.entries(
+    lessonChanges.updated as Record<string, any>,
+  )) {
+    if (id.startsWith("tmp_")) continue;
+    updated[id] = {
+      ...l,
+      teacher_ids: resolveIds(l.teacher_ids ?? [], teacherIds),
+      class_ids: resolveIds(l.class_ids ?? [], classIds),
+      room_ids: resolveIds(l.room_ids ?? [], roomIds),
+    };
+  }
+
+  const deleted = lessonChanges.deleted.filter(
+    (id: string) => !id.startsWith("tmp_"),
+  );
+
+  return { added, updated, deleted };
 }
