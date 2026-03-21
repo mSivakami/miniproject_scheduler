@@ -1,8 +1,7 @@
 """
 services/generator.py
 ---------------------
-Runs the Genetic Algorithm in a background thread and persists the result.
-Called via FastAPI BackgroundTasks — never blocks the HTTP response.
+Runs GA in a background thread for a specific user.
 """
 from __future__ import annotations
 import uuid
@@ -11,7 +10,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from db.session import SessionLocal
+from db.session import SessionLocal, load_user
 from models.orm import GenerationJobModel, TimetableModel, TimetableEntryModel
 from services.mapper import fetch_and_map, get_db_lesson_id
 from genetic import GeneticTimetableScheduler
@@ -19,6 +18,7 @@ from structures import Break
 
 DAYS            = 5
 PERIODS_PER_DAY = 7
+
 
 def _make_breaks() -> dict:
     breaks = {}
@@ -28,10 +28,13 @@ def _make_breaks() -> dict:
     return breaks
 
 
-def run_generation(job_id: str):
+def run_generation(job_id: str, user_id: str):
+    """
+    Called from BackgroundTasks. user_id passed explicitly
+    so the background thread knows whose data to schedule.
+    """
     db: Session = SessionLocal()
     try:
-        # ── Mark running ──────────────────────────────────────────────────
         job = db.query(GenerationJobModel).filter(GenerationJobModel.id == job_id).first()
         if not job:
             return
@@ -39,13 +42,14 @@ def run_generation(job_id: str):
         job.started_at = datetime.now(timezone.utc)
         db.commit()
 
-        # ── Map data ──────────────────────────────────────────────────────
-        teachers, subjects, rooms, classes, lesson_blocks = fetch_and_map()
+        # Ensure user data is loaded
+        load_user(db, user_id)
+
+        teachers, subjects, rooms, classes, lesson_blocks = fetch_and_map(user_id)
 
         if not lesson_blocks:
             raise ValueError("No lesson blocks configured — nothing to schedule.")
 
-        # ── Run GA ────────────────────────────────────────────────────────
         ga_start = time.time()
         scheduler = GeneticTimetableScheduler(
             teachers=teachers,
@@ -58,10 +62,9 @@ def run_generation(job_id: str):
             breaks=_make_breaks(),
         )
         best_tt, history = scheduler.evolve()
-        ga_seconds = round(time.time() - ga_start, 2)
+        ga_seconds    = round(time.time() - ga_start, 2)
         final_fitness = history[-1] if history else 0
 
-        # ── Persist timetable ─────────────────────────────────────────────
         tt_id = str(uuid.uuid4())
         db_tt = TimetableModel(id=tt_id, job_id=job_id, fitness=final_fitness)
         db.add(db_tt)
@@ -71,8 +74,6 @@ def run_generation(job_id: str):
             ts = best_tt.get_assignment(lesson.id)
             if ts is None:
                 continue
-            # Strip GA suffix back to DB lesson ID
-            # e.g. L0001_locked → L0001,  L0006_2 → L0006
             db_lesson_id = get_db_lesson_id(lesson.id)
             db.add(TimetableEntryModel(
                 id           = str(uuid.uuid4()),
@@ -83,7 +84,6 @@ def run_generation(job_id: str):
                 duration     = ts.duration,
             ))
 
-        # ── Mark done ─────────────────────────────────────────────────────
         job.status                  = "done"
         job.finished_at             = datetime.now(timezone.utc)
         job.generation_time_seconds = ga_seconds

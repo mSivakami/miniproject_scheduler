@@ -1,9 +1,12 @@
 -- ============================================================
--- TIMETABLE GENERATOR — PostgreSQL Schema (v2)
--- Drop all tables and run this fresh in Neon SQL Editor
+-- TIMETABLE GENERATOR — PostgreSQL Schema (v4, Neon Auth)
+-- ============================================================
+-- Users are managed by Neon Auth (neon_auth.user schema).
+-- user_id columns store Neon Auth user IDs as plain TEXT —
+-- no FK constraint needed since Neon Auth manages lifecycle.
 -- ============================================================
 
--- ── Drop everything cleanly first ────────────────────────────
+-- ── Drop everything cleanly ───────────────────────────────────
 
 DROP TABLE IF EXISTS
     timetable_entries, timetables, generation_jobs,
@@ -12,10 +15,11 @@ DROP TABLE IF EXISTS
     teachers, subjects, rooms, classes
 CASCADE;
 
--- ── Core entities ─────────────────────────────────────────────
+-- ── Core entities (user-scoped) ───────────────────────────────
 
 CREATE TABLE teachers (
     id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id    TEXT NOT NULL,
     name       TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -29,6 +33,7 @@ CREATE TABLE teacher_unavailable (
 
 CREATE TABLE subjects (
     id           TEXT    PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id      TEXT    NOT NULL,
     name         TEXT    NOT NULL,
     is_difficult BOOLEAN NOT NULL DEFAULT false,
     is_lab       BOOLEAN NOT NULL DEFAULT false,
@@ -38,29 +43,20 @@ CREATE TABLE subjects (
 
 CREATE TABLE rooms (
     id         TEXT    PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id    TEXT    NOT NULL,
     name       TEXT    NOT NULL,
     is_lab     BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE TABLE classes (
-    id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    name       TEXT NOT NULL,
+    id         TEXT    PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id    TEXT    NOT NULL,
+    name       TEXT    NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- ── Lesson blocks ─────────────────────────────────────────────
---
--- One row = one unique subject / teacher / class / room combo.
---
--- FREE lessons use sessions JSONB:
---   [{"duration": 1, "count": 3}, {"duration": 2, "count": 1}]
---   means: 3 single-period + 1 double-period slots per week
---   The mapper explodes this into individual GA LessonBlock objects.
---
--- LOCKED lessons use is_locked + locked_day + locked_start_period + locked_duration.
---   sessions = [] for locked lessons.
--- ─────────────────────────────────────────────────────────────
+-- ── Lesson blocks (no user_id — scoped via subject) ──────────
 
 CREATE TABLE lesson_blocks (
     id                  TEXT    PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -96,12 +92,13 @@ CREATE TABLE lesson_rooms (
     PRIMARY KEY (lesson_id, room_id)
 );
 
--- ── Generation jobs ───────────────────────────────────────────
+-- ── Generation jobs (user-scoped) ────────────────────────────
 
 CREATE TABLE generation_jobs (
-    id                      TEXT  PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    status                  TEXT  NOT NULL DEFAULT 'pending'
-                                  CHECK (status IN ('pending','running','done','failed')),
+    id                      TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id                 TEXT NOT NULL,
+    status                  TEXT NOT NULL DEFAULT 'pending'
+                                 CHECK (status IN ('pending','running','done','failed')),
     started_at              TIMESTAMPTZ,
     finished_at             TIMESTAMPTZ,
     error                   TEXT,
@@ -109,7 +106,7 @@ CREATE TABLE generation_jobs (
     created_at              TIMESTAMPTZ DEFAULT now()
 );
 
--- ── Timetable results ─────────────────────────────────────────
+-- ── Timetable results ────────────────────────────────────────
 
 CREATE TABLE timetables (
     id         TEXT    PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -120,23 +117,26 @@ CREATE TABLE timetables (
 
 CREATE TABLE timetable_entries (
     id           TEXT    PRIMARY KEY DEFAULT gen_random_uuid()::text,
-    timetable_id TEXT    NOT NULL REFERENCES timetables(id)     ON DELETE CASCADE,
-    lesson_id    TEXT    NOT NULL REFERENCES lesson_blocks(id)  ON DELETE CASCADE,
+    timetable_id TEXT    NOT NULL REFERENCES timetables(id)    ON DELETE CASCADE,
+    lesson_id    TEXT    NOT NULL REFERENCES lesson_blocks(id) ON DELETE CASCADE,
     day          INTEGER NOT NULL CHECK (day BETWEEN 0 AND 4),
     start_period INTEGER NOT NULL CHECK (start_period BETWEEN 0 AND 6),
     duration     INTEGER NOT NULL CHECK (duration BETWEEN 1 AND 3)
 );
 
--- ── Indexes ───────────────────────────────────────────────────
+-- ── Indexes ──────────────────────────────────────────────────
+
+CREATE INDEX idx_teachers_user          ON teachers(user_id);
+CREATE INDEX idx_subjects_user          ON subjects(user_id);
+CREATE INDEX idx_rooms_user             ON rooms(user_id);
+CREATE INDEX idx_classes_user           ON classes(user_id);
+CREATE INDEX idx_jobs_user              ON generation_jobs(user_id);
 
 CREATE INDEX idx_lesson_teachers_lesson ON lesson_teachers(lesson_id);
 CREATE INDEX idx_lesson_classes_lesson  ON lesson_classes(lesson_id);
 CREATE INDEX idx_lesson_rooms_lesson    ON lesson_rooms(lesson_id);
+
 CREATE INDEX idx_timetable_entries_tt   ON timetable_entries(timetable_id);
 CREATE INDEX idx_timetable_entries_day  ON timetable_entries(day, start_period);
-CREATE INDEX idx_jobs_status            ON generation_jobs(status);
 
--- ── Done ──────────────────────────────────────────────────────
--- Tables: teachers, teacher_unavailable, subjects, rooms,
---         classes, lesson_blocks, lesson_teachers, lesson_classes,
---         lesson_rooms, generation_jobs, timetables, timetable_entries
+CREATE INDEX idx_jobs_status            ON generation_jobs(status);

@@ -1,5 +1,9 @@
 """
 main.py — FastAPI application entry point.
+
+Schema is managed via schema.sql run in Neon SQL Editor.
+Tables are never created or altered here.
+User data loads lazily on first request per user.
 """
 from __future__ import annotations
 import os
@@ -10,26 +14,19 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from db.session import init_db, load_all, SessionLocal
 from routes.api import router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create tables then warm the in-memory store on startup."""
-    init_db()
-    db = SessionLocal()
-    try:
-        load_all(db)
-    finally:
-        db.close()
+    # Nothing to do on startup — schema already exists in Neon,
+    # user data loads lazily on first authenticated request.
     yield
 
 
 app = FastAPI(
     title="Timetable Generator API",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -44,6 +41,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api")
+
 
 if __name__ == "__main__":
     import uvicorn

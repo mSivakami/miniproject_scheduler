@@ -1,3 +1,4 @@
+"""schemas/api.py — Pydantic request/response models."""
 from __future__ import annotations
 from typing import Optional
 from pydantic import BaseModel, Field, model_validator
@@ -10,27 +11,17 @@ class UnavailableSlot(BaseModel):
     period: int = Field(..., ge=0, le=6)
 
 
-# ── Session spec ──────────────────────────────────────────────────────────────
-
 class SessionSpec(BaseModel):
-    """
-    One session type within a weekly lesson block.
-    duration = periods per session (1=single, 2=double, 3=triple)
-    count    = how many times this session type occurs per week
-    """
+    """Weekly session type — duration=periods per session, count=times per week."""
     duration: int = Field(..., ge=1, le=3)
     count:    int = Field(..., ge=1, le=10)
-
-    @property
-    def total_periods(self) -> int:
-        return self.duration * self.count
 
 
 # ── Teacher ───────────────────────────────────────────────────────────────────
 
 class TeacherBase(BaseModel):
-    name:               str
-    unavailable_slots:  list[UnavailableSlot] = []
+    name:              str
+    unavailable_slots: list[UnavailableSlot] = []
 
 class TeacherOut(TeacherBase):
     id: str
@@ -78,17 +69,6 @@ class ClassOut(ClassBase):
 # ── Lesson block ──────────────────────────────────────────────────────────────
 
 class LessonBase(BaseModel):
-    """
-    One lesson block = one unique subject / teacher / class / room combination.
-
-    For FREE lessons:
-      sessions = [{duration: 1, count: 3}, {duration: 2, count: 1}]
-      → 3 single-period + 1 double-period slots scheduled by GA per week
-
-    For LOCKED lessons:
-      sessions = []
-      is_locked = True, locked_day + locked_start_period + locked_duration set
-    """
     subject_id:          str
     teacher_ids:         list[str]
     class_ids:           list[str]
@@ -109,10 +89,6 @@ class LessonBase(BaseModel):
                 raise ValueError("Free lesson must have at least one session spec")
         return self
 
-    @property
-    def total_periods(self) -> int:
-        return sum(s.duration * s.count for s in self.sessions)
-
 
 class LessonOut(LessonBase):
     id:            str
@@ -130,29 +106,29 @@ class LessonOut(LessonBase):
 # ── Batch save ────────────────────────────────────────────────────────────────
 
 class TeacherChanges(BaseModel):
-    added:   list[TeacherBase]         = []
-    updated: dict[str, TeacherBase]    = {}
-    deleted: list[str]                 = []
+    added:   list[TeacherBase]      = []
+    updated: dict[str, TeacherBase] = {}
+    deleted: list[str]              = []
 
 class SubjectChanges(BaseModel):
-    added:   list[SubjectBase]         = []
-    updated: dict[str, SubjectBase]    = {}
-    deleted: list[str]                 = []
+    added:   list[SubjectBase]      = []
+    updated: dict[str, SubjectBase] = {}
+    deleted: list[str]              = []
 
 class RoomChanges(BaseModel):
-    added:   list[RoomBase]            = []
-    updated: dict[str, RoomBase]       = {}
-    deleted: list[str]                 = []
+    added:   list[RoomBase]         = []
+    updated: dict[str, RoomBase]    = {}
+    deleted: list[str]              = []
 
 class ClassChanges(BaseModel):
-    added:   list[ClassBase]           = []
-    updated: dict[str, ClassBase]      = {}
-    deleted: list[str]                 = []
+    added:   list[ClassBase]        = []
+    updated: dict[str, ClassBase]   = {}
+    deleted: list[str]              = []
 
 class LessonChanges(BaseModel):
-    added:   list[LessonBase]          = []
-    updated: dict[str, LessonBase]     = {}
-    deleted: list[str]                 = []
+    added:   list[LessonBase]       = []
+    updated: dict[str, LessonBase]  = {}
+    deleted: list[str]              = []
 
 class SaveAllRequest(BaseModel):
     teachers: TeacherChanges = TeacherChanges()
@@ -194,13 +170,3 @@ class TimetableResultResponse(BaseModel):
     timetable_id: str
     fitness:      int
     entries:      list[TimetableEntryOut]
-
-
-# ── Bootstrap ─────────────────────────────────────────────────────────────────
-
-class BootstrapResponse(BaseModel):
-    teachers: list[TeacherOut]
-    subjects: list[SubjectOut]
-    rooms:    list[RoomOut]
-    classes:  list[ClassOut]
-    lessons:  list[LessonOut]

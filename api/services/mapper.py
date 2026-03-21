@@ -1,118 +1,97 @@
 """
 services/mapper.py
 ------------------
-Converts in-memory store (ORM models) → GA dataclasses.
-
-KEY DESIGN:
-  DB stores ONE row per subject/teacher/class/room combo with a sessions JSONB field.
-  e.g. sessions = [{"duration": 1, "count": 3}, {"duration": 2, "count": 1}]
-
-  This mapper explodes each session spec into individual LessonBlock objects
-  that the GA can schedule independently, each with a unique derived ID.
-
-  Example explosion:
-    DB row  L0042  S2_CP  sessions=[{dur:1,count:3},{dur:2,count:1}]
-    → GA gets:
-        L0042_0  dur=1  (single)
-        L0042_1  dur=1  (single)
-        L0042_2  dur=1  (single)
-        L0042_3  dur=2  (double)
-
-  The GA never sees sessions — it just gets a flat list of LessonBlocks to schedule.
-  The result mapper uses the prefix (L0042) to reconstruct which DB row each entry
-  belongs to when saving timetable_entries.
+Converts per-user store (plain dicts) → GA dataclasses.
+Cached per user by store version number.
 """
 from __future__ import annotations
-from structures import Teacher, Subject, Room, Class, LessonBlock, TimeSlot, Break
+from structures import Teacher, Subject, Room, Class, LessonBlock, TimeSlot
 import db.session as store
 
-# ── Cache ─────────────────────────────────────────────────────────────────────
-
-_cache: tuple | None = None
-_cached_version: int = -1
+_cache:   dict[str, tuple] = {}
+_version: dict[str, int]   = {}
 
 
-def fetch_and_map():
-    """Return (teachers, subjects, rooms, classes, lesson_blocks). Cached by store version."""
-    global _cache, _cached_version
-    current = store.get_version()
-    if _cache is not None and _cached_version == current:
-        return _cache
-    _cache = _do_map()
-    _cached_version = current
-    return _cache
+def fetch_and_map(uid: str):
+    """Return (teachers, subjects, rooms, classes, lesson_blocks). Cached."""
+    current = store.get_version(uid)
+    if _cache.get(uid) is not None and _version.get(uid) == current:
+        return _cache[uid]
+    result = _do_map(uid)
+    _cache[uid]   = result
+    _version[uid] = current
+    return result
 
 
-def get_db_lesson_id(ga_lesson_id: str) -> str:
-    """
-    Strip the session suffix from a GA lesson ID to get the DB lesson ID.
-    L0042_3  →  L0042
-    L0042_locked  →  L0042
-    """
-    return ga_lesson_id.rsplit("_", 1)[0]
+def invalidate(uid: str):
+    _cache.pop(uid, None)
+    _version.pop(uid, None)
 
 
-# ── Mapping ───────────────────────────────────────────────────────────────────
+def get_db_lesson_id(ga_id: str) -> str:
+    """Strip GA suffix: L0042_3 → L0042, L0042_locked → L0042"""
+    return ga_id.rsplit("_", 1)[0]
 
-def _do_map():
-    teachers: dict[str, Teacher] = {
+
+def _do_map(uid: str):
+    # All store values are plain dicts now
+    teachers = {
         tid: Teacher(
-            id=tid,
-            name=row.name,
-            unavailable_slots=[(u.day, u.period) for u in row.unavailable],
+            id=d["id"],
+            name=d["name"],
+            unavailable_slots=[
+                (u["day"], u["period"]) for u in d.get("unavailable_slots", [])
+            ],
         )
-        for tid, row in store.get_teachers().items()
+        for tid, d in store.get_teachers(uid).items()
     }
 
-    subjects: dict[str, Subject] = {
+    subjects = {
         sid: Subject(
-            id=sid,
-            name=row.name,
-            is_difficult=row.is_difficult,
-            is_lab=row.is_lab,
-            priority=row.priority,
+            id=d["id"],
+            name=d["name"],
+            is_difficult=d.get("is_difficult", False),
+            is_lab=d.get("is_lab", False),
+            priority=d.get("priority", 5),
         )
-        for sid, row in store.get_subjects().items()
+        for sid, d in store.get_subjects(uid).items()
     }
 
-    rooms: dict[str, Room] = {
-        rid: Room(id=rid, name=row.name, is_lab=row.is_lab)
-        for rid, row in store.get_rooms().items()
+    rooms = {
+        rid: Room(id=d["id"], name=d["name"], is_lab=d.get("is_lab", False))
+        for rid, d in store.get_rooms(uid).items()
     }
 
-    classes: dict[str, Class] = {
-        cid: Class(id=cid, name=row.name)
-        for cid, row in store.get_classes().items()
+    classes = {
+        cid: Class(id=d["id"], name=d["name"])
+        for cid, d in store.get_classes(uid).items()
     }
 
     lesson_blocks: list[LessonBlock] = []
 
-    for lid, row in store.get_lessons().items():
-        teacher_ids = [t.id for t in row.teachers]
-        class_ids   = [c.id for c in row.classes]
-        room_ids    = [r.id for r in row.rooms]
+    for lid, d in store.get_lessons(uid).items():
+        teacher_ids = d.get("teacher_ids", [])
+        class_ids   = d.get("class_ids",   [])
+        room_ids    = d.get("room_ids",     [])
 
-        if row.is_locked and row.locked_day is not None:
-            # ── Locked lesson: one block, fixed timeslot ───────────────────
-            dur = row.locked_duration or 1
+        if d.get("is_locked") and d.get("locked_day") is not None:
+            dur = d.get("locked_duration") or 1
             lesson_blocks.append(LessonBlock(
                 id              = f"{lid}_locked",
                 teacher_ids     = teacher_ids,
-                subject_id      = row.subject_id,
+                subject_id      = d["subject_id"],
                 class_ids       = class_ids,
                 room_ids        = room_ids,
                 duration        = dur,
                 is_locked       = True,
                 locked_timeslot = TimeSlot(
-                    day          = row.locked_day,
-                    start_period = row.locked_start_period,
+                    day          = d["locked_day"],
+                    start_period = d["locked_start_period"],
                     duration     = dur,
                 ),
             ))
-
         else:
-            # ── Free lesson: explode sessions into individual blocks ────────
-            sessions = row.sessions or []
+            sessions   = d.get("sessions") or []
             slot_index = 0
             for spec in sessions:
                 dur   = spec["duration"]
@@ -121,7 +100,7 @@ def _do_map():
                     lesson_blocks.append(LessonBlock(
                         id          = f"{lid}_{slot_index}",
                         teacher_ids = teacher_ids,
-                        subject_id  = row.subject_id,
+                        subject_id  = d["subject_id"],
                         class_ids   = class_ids,
                         room_ids    = room_ids,
                         duration    = dur,

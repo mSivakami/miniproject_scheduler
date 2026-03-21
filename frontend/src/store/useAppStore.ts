@@ -33,8 +33,8 @@ export interface Class {
 }
 
 export interface SessionSpec {
-  duration: 1 | 2 | 3; // periods per session
-  count: number; // times per week
+  duration: 1 | 2 | 3;
+  count: number;
 }
 
 export interface Lesson {
@@ -43,12 +43,12 @@ export interface Lesson {
   teacher_ids: string[];
   class_ids: string[];
   room_ids: string[];
-  sessions: SessionSpec[]; // e.g. [{duration:1,count:3},{duration:2,count:1}]
+  sessions: SessionSpec[];
   is_locked: boolean;
   locked_day: number | null;
   locked_start_period: number | null;
   locked_duration: number | null;
-  total_periods?: number; // computed by server, display only
+  total_periods?: number;
 }
 
 export interface TimetableEntry {
@@ -100,7 +100,6 @@ interface AppState {
   saving: boolean;
   saveError: string | null;
   generation: GenerationState;
-  bootstrapped: boolean;
 
   setBootstrap: (data: any) => void;
   setLoading: (v: boolean) => void;
@@ -170,7 +169,6 @@ export const useAppStore = create<AppState>()(
       loading: false,
       saving: false,
       saveError: null,
-      bootstrapped: false,
       generation: { jobId: null, status: "idle", error: null, timetable: null },
 
       setBootstrap: (data) =>
@@ -180,7 +178,6 @@ export const useAppStore = create<AppState>()(
           s.rooms = data.rooms ?? [];
           s.classes = data.classes ?? [];
           s.lessons = data.lessons ?? [];
-          s.bootstrapped = true;
         }),
 
       setLoading: (v) =>
@@ -361,14 +358,14 @@ export const useAppStore = create<AppState>()(
     {
       name: "timetable-app-store",
       storage: createJSONStorage(() => localStorage),
+      // Only persist changes (unsaved edits) — NOT the server data.
+      // Server data is always fetched fresh on mount via useBootstrap.
+      // This prevents stale tmp_ IDs from persisting across sessions.
       partialize: (s) => ({
-        teachers: s.teachers,
-        subjects: s.subjects,
-        rooms: s.rooms,
-        classes: s.classes,
-        lessons: s.lessons,
-        bootstrapped: s.bootstrapped,
+        changes: s.changes,
+        generation: s.generation,
       }),
     },
   ),
 );
+  

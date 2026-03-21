@@ -4,11 +4,11 @@ import { useAppStore } from "../store/useAppStore";
 import { fetchBootstrap, saveAll } from "../services/api";
 
 export function useBootstrap() {
-  const { setBootstrap, setLoading, bootstrapped } = useAppStore();
+  const { setBootstrap, setLoading } = useAppStore();
 
   useEffect(() => {
-    // Skip if already loaded from localStorage
-    if (bootstrapped) return;
+    // Always fetch fresh from server on mount — never rely on localStorage
+    // for server-assigned IDs. localStorage is only for UI state.
     setLoading(true);
     fetchBootstrap()
       .then(setBootstrap)
@@ -35,7 +35,8 @@ export function useSave() {
       };
       await saveAll(payload);
 
-      // Re-bootstrap so frontend gets real IDs assigned by the server
+      // Always re-bootstrap after save so frontend gets real server IDs.
+      // This replaces all tmp_ IDs with real UUIDs from the DB.
       const fresh = await fetchBootstrap();
       setBootstrap(fresh);
       clearChanges();
@@ -53,12 +54,12 @@ function sanitize(changes: any) {
   return {
     added: changes.added.map(stripTempId),
     updated: changes.updated,
+    // Never send tmp_ IDs as deleted — they were never saved to DB
     deleted: changes.deleted.filter((id: string) => !id.startsWith("tmp_")),
   };
 }
 
 function stripTempId(item: any) {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id, ...rest } = item;
   return rest;
 }

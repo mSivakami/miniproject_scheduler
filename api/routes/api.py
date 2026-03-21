@@ -1,5 +1,8 @@
 """
-routes/api.py — All API endpoints.
+routes/api.py
+-------------
+All data endpoints. Every endpoint requires a valid Neon Auth session token.
+user_id is extracted from the verified token and used to scope all queries.
 """
 from __future__ import annotations
 import uuid
@@ -10,7 +13,8 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
 
 import db.session as store
-from db.session import get_db
+from db.session import get_db, load_user
+from auth.verify import get_current_user
 from models.orm import (
     TeacherModel, TeacherUnavailableModel,
     SubjectModel, RoomModel, ClassModel,
@@ -26,7 +30,8 @@ from services.generator import run_generation
 from services.mapper import get_db_lesson_id
 
 router = APIRouter()
-DB = Annotated[Session, Depends(get_db)]
+DB   = Annotated[Session, Depends(get_db)]
+User = Annotated[dict,    Depends(get_current_user)]
 
 
 def _new_id() -> str:
@@ -42,44 +47,35 @@ def _integrity_error(e: IntegrityError) -> HTTPException:
     return HTTPException(400, "Database constraint violation")
 
 
-# ── Serialisers ───────────────────────────────────────────────────────────────
+def _ensure_loaded(db: Session, uid: str):
+    """Load user data into store if not already present."""
+    if not store.get_teachers(uid) and not store.get_subjects(uid):
+        load_user(db, uid)
 
-def _teacher_out(t: TeacherModel) -> dict:
-    return {
-        "id":   t.id,
-        "name": t.name,
-        "unavailable_slots": [{"day": u.day, "period": u.period} for u in t.unavailable],
-    }
 
-def _lesson_out(l: LessonBlockModel) -> dict:
-    return {
-        "id":                  l.id,
-        "subject_id":          l.subject_id,
-        "teacher_ids":         [t.id for t in l.teachers],
-        "class_ids":           [c.id for c in l.classes],
-        "room_ids":            [r.id for r in l.rooms],
-        "sessions":            l.sessions or [],
-        "is_locked":           l.is_locked,
-        "locked_day":          l.locked_day,
-        "locked_start_period": l.locked_start_period,
-        "locked_duration":     l.locked_duration,
-        # computed for display
-        "total_periods": sum(s["duration"] * s["count"] for s in (l.sessions or [])),
-    }
+# ── Serialisers (store now holds plain dicts) ────────────────────────────────
+
+def _teacher_out(t: dict) -> dict:
+    return t   # already the right shape from session._teacher_dict
+
+def _lesson_out(l: dict) -> dict:
+    return l   # already the right shape from session._lesson_dict
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# BOOTSTRAP
+# BOOTSTRAP — returns all data for the authenticated user
 # ══════════════════════════════════════════════════════════════════════════════
 
-@router.get("/bootstrap", tags=["System"])
-def bootstrap():
+@router.get("/bootstrap", tags=["Data"])
+def bootstrap(user: User, db: DB):
+    uid = user["id"]
+    _ensure_loaded(db, uid)
     return {
-        "teachers": [_teacher_out(t) for t in store.get_teachers().values()],
-        "subjects": list(store.get_subjects().values()),
-        "rooms":    list(store.get_rooms().values()),
-        "classes":  list(store.get_classes().values()),
-        "lessons":  [_lesson_out(l) for l in store.get_lessons().values()],
+        "teachers": list(store.get_teachers(uid).values()),
+        "subjects": list(store.get_subjects(uid).values()),
+        "rooms":    list(store.get_rooms(uid).values()),
+        "classes":  list(store.get_classes(uid).values()),
+        "lessons":  list(store.get_lessons(uid).values()),
     }
 
 
@@ -88,7 +84,8 @@ def bootstrap():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/save-all", response_model=SaveAllResponse, tags=["Data"])
-def save_all(body: SaveAllRequest, db: DB):
+def save_all(body: SaveAllRequest, user: User, db: DB):
+    uid    = user["id"]
     counts: dict[str, dict[str, int]] = {}
 
     try:
@@ -97,14 +94,17 @@ def save_all(body: SaveAllRequest, db: DB):
         counts["teachers"] = {"added": 0, "updated": 0, "deleted": 0}
 
         for item in tc.added:
-            t = TeacherModel(id=_new_id(), name=item.name.strip())
+            t = TeacherModel(id=_new_id(), user_id=uid, name=item.name.strip())
             db.add(t)
+            db.flush()
             for slot in item.unavailable_slots:
                 db.add(TeacherUnavailableModel(teacher_id=t.id, day=slot.day, period=slot.period))
             counts["teachers"]["added"] += 1
 
         for tid, item in tc.updated.items():
-            t = db.query(TeacherModel).filter(TeacherModel.id == tid).first()
+            t = db.query(TeacherModel).filter(
+                TeacherModel.id == tid, TeacherModel.user_id == uid
+            ).first()
             if not t:
                 raise HTTPException(404, f"Teacher {tid} not found")
             t.name = item.name.strip()
@@ -116,7 +116,9 @@ def save_all(body: SaveAllRequest, db: DB):
             counts["teachers"]["updated"] += 1
 
         for tid in tc.deleted:
-            t = db.query(TeacherModel).filter(TeacherModel.id == tid).first()
+            t = db.query(TeacherModel).filter(
+                TeacherModel.id == tid, TeacherModel.user_id == uid
+            ).first()
             if t:
                 db.delete(t)
                 counts["teachers"]["deleted"] += 1
@@ -126,12 +128,16 @@ def save_all(body: SaveAllRequest, db: DB):
         counts["subjects"] = {"added": 0, "updated": 0, "deleted": 0}
 
         for item in sc.added:
-            db.add(SubjectModel(id=_new_id(), name=item.name.strip(),
-                is_difficult=item.is_difficult, is_lab=item.is_lab, priority=item.priority))
+            db.add(SubjectModel(
+                id=_new_id(), user_id=uid, name=item.name.strip(),
+                is_difficult=item.is_difficult, is_lab=item.is_lab, priority=item.priority,
+            ))
             counts["subjects"]["added"] += 1
 
         for sid, item in sc.updated.items():
-            s = db.query(SubjectModel).filter(SubjectModel.id == sid).first()
+            s = db.query(SubjectModel).filter(
+                SubjectModel.id == sid, SubjectModel.user_id == uid
+            ).first()
             if not s:
                 raise HTTPException(404, f"Subject {sid} not found")
             s.name=item.name.strip(); s.is_difficult=item.is_difficult
@@ -139,7 +145,9 @@ def save_all(body: SaveAllRequest, db: DB):
             counts["subjects"]["updated"] += 1
 
         for sid in sc.deleted:
-            s = db.query(SubjectModel).filter(SubjectModel.id == sid).first()
+            s = db.query(SubjectModel).filter(
+                SubjectModel.id == sid, SubjectModel.user_id == uid
+            ).first()
             if s:
                 db.delete(s)
                 counts["subjects"]["deleted"] += 1
@@ -149,18 +157,22 @@ def save_all(body: SaveAllRequest, db: DB):
         counts["rooms"] = {"added": 0, "updated": 0, "deleted": 0}
 
         for item in rc.added:
-            db.add(RoomModel(id=_new_id(), name=item.name.strip(), is_lab=item.is_lab))
+            db.add(RoomModel(id=_new_id(), user_id=uid, name=item.name.strip(), is_lab=item.is_lab))
             counts["rooms"]["added"] += 1
 
         for rid, item in rc.updated.items():
-            r = db.query(RoomModel).filter(RoomModel.id == rid).first()
+            r = db.query(RoomModel).filter(
+                RoomModel.id == rid, RoomModel.user_id == uid
+            ).first()
             if not r:
                 raise HTTPException(404, f"Room {rid} not found")
             r.name=item.name.strip(); r.is_lab=item.is_lab
             counts["rooms"]["updated"] += 1
 
         for rid in rc.deleted:
-            r = db.query(RoomModel).filter(RoomModel.id == rid).first()
+            r = db.query(RoomModel).filter(
+                RoomModel.id == rid, RoomModel.user_id == uid
+            ).first()
             if r:
                 db.delete(r)
                 counts["rooms"]["deleted"] += 1
@@ -170,18 +182,22 @@ def save_all(body: SaveAllRequest, db: DB):
         counts["classes"] = {"added": 0, "updated": 0, "deleted": 0}
 
         for item in cc.added:
-            db.add(ClassModel(id=_new_id(), name=item.name.strip()))
+            db.add(ClassModel(id=_new_id(), user_id=uid, name=item.name.strip()))
             counts["classes"]["added"] += 1
 
         for cid, item in cc.updated.items():
-            c = db.query(ClassModel).filter(ClassModel.id == cid).first()
+            c = db.query(ClassModel).filter(
+                ClassModel.id == cid, ClassModel.user_id == uid
+            ).first()
             if not c:
                 raise HTTPException(404, f"Class {cid} not found")
             c.name = item.name.strip()
             counts["classes"]["updated"] += 1
 
         for cid in cc.deleted:
-            c = db.query(ClassModel).filter(ClassModel.id == cid).first()
+            c = db.query(ClassModel).filter(
+                ClassModel.id == cid, ClassModel.user_id == uid
+            ).first()
             if c:
                 db.delete(c)
                 counts["classes"]["deleted"] += 1
@@ -200,14 +216,30 @@ def save_all(body: SaveAllRequest, db: DB):
                 locked_start_period = item.locked_start_period,
                 locked_duration     = item.locked_duration,
             )
-            lesson.teachers = db.query(TeacherModel).filter(TeacherModel.id.in_(item.teacher_ids)).all()
-            lesson.classes  = db.query(ClassModel).filter(ClassModel.id.in_(item.class_ids)).all()
-            lesson.rooms    = db.query(RoomModel).filter(RoomModel.id.in_(item.room_ids)).all()
+            # Only allow teachers/classes/rooms belonging to this user
+            lesson.teachers = db.query(TeacherModel).filter(
+                TeacherModel.id.in_(item.teacher_ids),
+                TeacherModel.user_id == uid,
+            ).all()
+            lesson.classes = db.query(ClassModel).filter(
+                ClassModel.id.in_(item.class_ids),
+                ClassModel.user_id == uid,
+            ).all()
+            lesson.rooms = db.query(RoomModel).filter(
+                RoomModel.id.in_(item.room_ids),
+                RoomModel.user_id == uid,
+            ).all()
             db.add(lesson)
             counts["lessons"]["added"] += 1
 
         for lid, item in lc.updated.items():
-            l = db.query(LessonBlockModel).filter(LessonBlockModel.id == lid).first()
+            # Verify lesson belongs to user via subject ownership
+            l = (
+                db.query(LessonBlockModel)
+                .join(SubjectModel, LessonBlockModel.subject_id == SubjectModel.id)
+                .filter(LessonBlockModel.id == lid, SubjectModel.user_id == uid)
+                .first()
+            )
             if not l:
                 raise HTTPException(404, f"Lesson {lid} not found")
             l.subject_id          = item.subject_id
@@ -216,28 +248,43 @@ def save_all(body: SaveAllRequest, db: DB):
             l.locked_day          = item.locked_day
             l.locked_start_period = item.locked_start_period
             l.locked_duration     = item.locked_duration
-            l.teachers = db.query(TeacherModel).filter(TeacherModel.id.in_(item.teacher_ids)).all()
-            l.classes  = db.query(ClassModel).filter(ClassModel.id.in_(item.class_ids)).all()
-            l.rooms    = db.query(RoomModel).filter(RoomModel.id.in_(item.room_ids)).all()
+            l.teachers = db.query(TeacherModel).filter(
+                TeacherModel.id.in_(item.teacher_ids), TeacherModel.user_id == uid,
+            ).all()
+            l.classes = db.query(ClassModel).filter(
+                ClassModel.id.in_(item.class_ids), ClassModel.user_id == uid,
+            ).all()
+            l.rooms = db.query(RoomModel).filter(
+                RoomModel.id.in_(item.room_ids), RoomModel.user_id == uid,
+            ).all()
             counts["lessons"]["updated"] += 1
 
         for lid in lc.deleted:
-            l = db.query(LessonBlockModel).filter(LessonBlockModel.id == lid).first()
+            l = (
+                db.query(LessonBlockModel)
+                .join(SubjectModel, LessonBlockModel.subject_id == SubjectModel.id)
+                .filter(LessonBlockModel.id == lid, SubjectModel.user_id == uid)
+                .first()
+            )
             if l:
                 db.delete(l)
                 counts["lessons"]["deleted"] += 1
 
         db.commit()
-        store.load_all(db)   # re-sync in-memory store
+        load_user(db, uid)   # re-sync in-memory store for this user
 
-    except HTTPException:
+    except HTTPException as e:
         db.rollback()
+        print(f"[save-all] HTTPException {e.status_code}: {e.detail}")
         raise
     except IntegrityError as e:
         db.rollback()
+        print(f"[save-all] IntegrityError: {e.orig}")
         raise _integrity_error(e)
     except Exception as e:
+        import traceback
         db.rollback()
+        print(f"[save-all] ERROR: {traceback.format_exc()}")
         raise HTTPException(500, str(e))
 
     return SaveAllResponse(ok=True, counts=counts)
@@ -248,17 +295,22 @@ def save_all(body: SaveAllRequest, db: DB):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/generate", response_model=GenerateResponse, tags=["Generation"])
-def generate(background_tasks: BackgroundTasks, db: DB):
-    job = GenerationJobModel(id=_new_id(), status="pending")
+def generate(background_tasks: BackgroundTasks, user: User, db: DB):
+    uid = user["id"]
+    job = GenerationJobModel(id=_new_id(), user_id=uid, status="pending")
     db.add(job)
     db.commit()
-    background_tasks.add_task(run_generation, job.id)
+    background_tasks.add_task(run_generation, job.id, uid)
     return GenerateResponse(job_id=job.id)
 
 
 @router.get("/status/{job_id}", response_model=JobStatusResponse, tags=["Generation"])
-def job_status(job_id: str, db: DB):
-    job = db.query(GenerationJobModel).filter(GenerationJobModel.id == job_id).first()
+def job_status(job_id: str, user: User, db: DB):
+    uid = user["id"]
+    job = db.query(GenerationJobModel).filter(
+        GenerationJobModel.id == job_id,
+        GenerationJobModel.user_id == uid,
+    ).first()
     if not job:
         raise HTTPException(404, "Job not found")
     return JobStatusResponse(
@@ -272,7 +324,15 @@ def job_status(job_id: str, db: DB):
 
 
 @router.get("/result/{job_id}", response_model=TimetableResultResponse, tags=["Generation"])
-def job_result(job_id: str, db: DB):
+def job_result(job_id: str, user: User, db: DB):
+    uid = user["id"]
+    job = db.query(GenerationJobModel).filter(
+        GenerationJobModel.id == job_id,
+        GenerationJobModel.user_id == uid,
+    ).first()
+    if not job:
+        raise HTTPException(404, "Job not found")
+
     tt = (
         db.query(TimetableModel)
         .filter(TimetableModel.job_id == job_id)
@@ -282,33 +342,48 @@ def job_result(job_id: str, db: DB):
     if not tt:
         raise HTTPException(404, "Result not ready")
 
+    # Load subjects as plain dicts while session is open — avoids DetachedInstanceError
+    subjects_raw = db.query(SubjectModel).filter(SubjectModel.user_id == uid).all()
+    subjects_map = {s.id: s.name for s in subjects_raw}
+
     entries = (
         db.query(TimetableEntryModel)
         .filter(TimetableEntryModel.timetable_id == tt.id)
-        .options(selectinload(TimetableEntryModel.lesson))
+        .options(
+            selectinload(TimetableEntryModel.lesson).selectinload(LessonBlockModel.teachers),
+            selectinload(TimetableEntryModel.lesson).selectinload(LessonBlockModel.classes),
+            selectinload(TimetableEntryModel.lesson).selectinload(LessonBlockModel.rooms),
+        )
         .all()
     )
 
-    subjects_map = store.get_subjects()
+    # Extract all data while session is still open
+    tt_id      = tt.id
+    tt_fitness = tt.fitness
+
     entry_out = []
     for e in entries:
-        lesson = e.lesson
-        subj   = subjects_map.get(lesson.subject_id)
+        lesson      = e.lesson
+        subject_id  = lesson.subject_id
+        subject_name = subjects_map.get(subject_id, subject_id)
+        teacher_ids = [t.id for t in lesson.teachers]
+        class_ids   = [c.id for c in lesson.classes]
+        room_ids    = [r.id for r in lesson.rooms]
         entry_out.append(TimetableEntryOut(
             lesson_id    = lesson.id,
             day          = e.day,
             start_period = e.start_period,
             duration     = e.duration,
-            subject_id   = lesson.subject_id,
-            subject_name = subj.name if subj else lesson.subject_id,
-            teacher_ids  = [t.id for t in lesson.teachers],
-            class_ids    = [c.id for c in lesson.classes],
-            room_ids     = [r.id for r in lesson.rooms],
+            subject_id   = subject_id,
+            subject_name = subject_name,
+            teacher_ids  = teacher_ids,
+            class_ids    = class_ids,
+            room_ids     = room_ids,
         ))
 
     return TimetableResultResponse(
-        timetable_id = tt.id,
-        fitness      = tt.fitness,
+        timetable_id = tt_id,
+        fitness      = tt_fitness,
         entries      = entry_out,
     )
 
@@ -317,18 +392,10 @@ def job_result(job_id: str, db: DB):
 
 @router.get("/health", tags=["System"])
 def health():
-    return {
-        "status": "ok",
-        "store": {k: len(v) for k, v in {
-            "teachers": store.get_teachers(),
-            "subjects": store.get_subjects(),
-            "rooms":    store.get_rooms(),
-            "classes":  store.get_classes(),
-            "lessons":  store.get_lessons(),
-        }.items()},
-    }
+    return {"status": "ok"}
+
 
 @router.post("/reload-store", tags=["System"])
-def reload_store(db: DB):
-    store.load_all(db)
-    return {"status": "reloaded"}
+def reload_store(user: User, db: DB):
+    load_user(db, user["id"])
+    return {"status": "reloaded", "user_id": user["id"]}
