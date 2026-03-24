@@ -44,9 +44,6 @@ app.add_middleware(
 
 app.include_router(router, prefix="/api")
 
-@app.get("/health")
-def health_root():
-    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn
