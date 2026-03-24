@@ -8,6 +8,17 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
+import os
+import io
+import tempfile
+
+from fastapi.responses import StreamingResponse
+from models.orm import (
+    TeacherModel, TeacherUnavailableModel,
+    SubjectModel, RoomModel, ClassModel,
+    LessonBlockModel, GenerationJobModel,
+)
+
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
@@ -15,23 +26,19 @@ from sqlalchemy.exc import IntegrityError
 import db.session as store
 from db.session import get_db, load_user
 from auth.verify import get_current_user
-from models.orm import (
-    TeacherModel, TeacherUnavailableModel,
-    SubjectModel, RoomModel, ClassModel,
-    LessonBlockModel, GenerationJobModel,
-)
+
 from schemas.api import (
-    SaveAllRequest, SaveAllResponse,
+    ExportPdfRequest, SaveAllRequest, SaveAllResponse,
     GenerateResponse, JobStatusResponse,
     TimetableResultResponse, TimetableEntryOut,
 )
 from services.generator import run_generation, get_result
-from services.mapper import get_db_lesson_id
 
 router = APIRouter()
 DB   = Annotated[Session, Depends(get_db)]
 User = Annotated[dict,    Depends(get_current_user)]
 
+from structures import Break
 
 def _new_id() -> str:
     return str(uuid.uuid4())
@@ -344,6 +351,94 @@ def job_result(job_id: str, user: User, db: DB):
         entries      = [TimetableEntryOut(**e) for e in result["entries"]],
     )
 
+# ── PDF Export ────────────────────────────────────────────────────────────────
+
+@router.post("/export-pdf/{job_id}", tags=["Generation"])
+def export_pdf(job_id: str, user: User, db: DB, body: ExportPdfRequest):
+    print("[export-pdf] job_id:", job_id)
+    print("[export-pdf] body entries count:", len(body.entries))
+    print("[export-pdf] first entry:", body.entries[0] if body.entries else None)
+    from services.mapper import fetch_and_map
+    from pdf_generation import generate_pdf_timetable
+
+    from structures import Timetable, TimeSlot
+
+    PERIODS_PER_DAY = 7
+    DAYS = 5
+    def _make_breaks() -> dict:
+        breaks = {}
+        for day in range(DAYS - 1):
+            breaks[(day, 3)] = Break("Lunch")
+        breaks[(DAYS - 1, 4)] = Break("Lunch")
+        return breaks
+
+
+    uid = user["id"]
+
+    # Verify job belongs to user
+    job = db.query(GenerationJobModel).filter(
+        GenerationJobModel.id == job_id,
+        GenerationJobModel.user_id == uid,
+    ).first()
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job.status != "done":
+        raise HTTPException(400, "Timetable not ready — job has not completed successfully")
+    
+    entries = body.entries
+
+    # Fetch GA structures
+    teachers, subjects, rooms, classes, lesson_blocks = fetch_and_map(uid)
+    teachers, subjects, rooms, classes, lesson_blocks = fetch_and_map(uid)
+
+
+
+    # Build GA Timetable
+    breaks = _make_breaks()
+    locked = [lb for lb in lesson_blocks if lb.is_locked]
+    tt = Timetable(DAYS, PERIODS_PER_DAY, breaks, locked)
+
+    # Build reverse map: db_lesson_id -> GA LessonBlock list
+    # KEY FIX: use lb.db_id (the original DB id stored on GA object) not get_db_lesson_id()
+    # Build reverse map: lesson_id -> GA LessonBlock list
+    db_to_ga: dict[str, list] = {}
+    for lb in lesson_blocks:
+        db_to_ga.setdefault(lb.id, []).append(lb)
+
+    for entry in entries:
+        ts = TimeSlot(entry.day, entry.start_period, entry.duration)
+        ga_lessons = db_to_ga.get(entry.lesson_id, [])
+        for lb in ga_lessons:
+            if tt.get_assignment(lb.id) is None and lb.duration == entry.duration:
+                tt.assign(lb, ts)
+                break
+
+    # Stream PDF
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        generate_pdf_timetable(
+            timetable=tt,
+            classes=classes,
+            teachers=teachers,
+            subjects=subjects,
+            lesson_blocks=lesson_blocks,
+            filename=tmp_path,
+        )
+        with open(tmp_path, "rb") as f:
+            pdf_bytes = f.read()
+    finally:
+        os.unlink(tmp_path)
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="timetable_{job_id[:8]}.pdf"',
+            "Content-Length": str(len(pdf_bytes)),
+        },
+    )
 
 # ── System ────────────────────────────────────────────────────────────────────
 

@@ -7,7 +7,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await getSessionToken();
 
   if (!token) {
-    // Session missing or expired — send user back to sign-in
     window.location.href = "/auth/sign-in";
     throw new Error("Not authenticated — redirecting to sign-in");
   }
@@ -23,7 +22,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (res.status === 401) {
-    // Token expired mid-session — send user back to sign-in
     window.location.href = "/auth/sign-in";
     throw new Error("Session expired — please sign in again");
   }
@@ -36,6 +34,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+
 export const fetchBootstrap = () => request<any>("/bootstrap");
 export const saveAll = (body: any) =>
   request<any>("/save-all", { method: "POST", body: JSON.stringify(body) });
@@ -45,3 +44,18 @@ export const pollStatus = (id: string) => request<any>(`/status/${id}`);
 export const fetchResult = (id: string) => request<any>(`/result/${id}`);
 export const reloadStore = () =>
   request<any>("/reload-store", { method: "POST" });
+
+export const exportPdf = async (jobId: string, entries: any[]) => {
+  const token = await getSessionToken();
+  const res = await fetch(`${BASE}/export-pdf/${jobId}`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ entries }),
+  });
+  if (!res.ok) throw new Error("PDF export failed");
+  return res.blob();
+};

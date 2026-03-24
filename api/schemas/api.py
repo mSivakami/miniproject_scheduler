@@ -170,3 +170,6 @@ class TimetableResultResponse(BaseModel):
     timetable_id: str
     fitness:      int
     entries:      list[TimetableEntryOut]
+
+class ExportPdfRequest(BaseModel):
+    entries: list[TimetableEntryOut]

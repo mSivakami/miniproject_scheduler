@@ -6,9 +6,8 @@ Tables are never created or altered here.
 User data loads lazily on first request per user.
 """
 from __future__ import annotations
-import os
 from contextlib import asynccontextmanager
-
+import os
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -30,11 +29,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+from fastapi.middleware.cors import CORSMiddleware
+import os
+
+origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
