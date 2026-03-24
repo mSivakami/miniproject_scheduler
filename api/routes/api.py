@@ -386,12 +386,10 @@ def export_pdf(job_id: str, user: User, db: DB, body: ExportPdfRequest):
         raise HTTPException(400, "Timetable not ready — job has not completed successfully")
     
     entries = body.entries
-
+    _ensure_loaded(db, uid)
     # Fetch GA structures
     teachers, subjects, rooms, classes, lesson_blocks = fetch_and_map(uid)
-    teachers, subjects, rooms, classes, lesson_blocks = fetch_and_map(uid)
-
-
+    
 
     # Build GA Timetable
     breaks = _make_breaks()
@@ -403,7 +401,8 @@ def export_pdf(job_id: str, user: User, db: DB, body: ExportPdfRequest):
     # Build reverse map: lesson_id -> GA LessonBlock list
     db_to_ga: dict[str, list] = {}
     for lb in lesson_blocks:
-        db_to_ga.setdefault(lb.id, []).append(lb)
+        db_id = lb.id.rsplit("_", 1)[0]  # strips _0, _1, _locked etc
+        db_to_ga.setdefault(db_id, []).append(lb)
 
     for entry in entries:
         ts = TimeSlot(entry.day, entry.start_period, entry.duration)
