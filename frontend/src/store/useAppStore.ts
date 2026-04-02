@@ -5,6 +5,27 @@ import { immer } from "zustand/middleware/immer";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+export interface BreakSlot {
+  day: number;
+  period: number;
+}
+
+export interface InstitutionSettings {
+  institution_name: string;
+  academic_year: string;
+  num_days: number; // 1-6
+  num_periods: number; // 1-11
+  break_periods: BreakSlot[];
+}
+
+export const DEFAULT_SETTINGS: InstitutionSettings = {
+  institution_name: "",
+  academic_year: "",
+  num_days: 5,
+  num_periods: 7,
+  break_periods: [],
+};
+
 export interface UnavailableSlot {
   day: number;
   period: number;
@@ -82,6 +103,9 @@ interface GenerationState {
 }
 
 interface AppState {
+  // Institution settings (null = not yet configured)
+  settings: InstitutionSettings | null;
+
   teachers: Teacher[];
   subjects: Subject[];
   rooms: Room[];
@@ -102,6 +126,7 @@ interface AppState {
   generation: GenerationState;
 
   setBootstrap: (data: any) => void;
+  setSettings: (s: InstitutionSettings | null) => void;
   setLoading: (v: boolean) => void;
   setSaving: (v: boolean) => void;
   setSaveError: (e: string | null) => void;
@@ -155,6 +180,7 @@ export const sessionSummary = (sessions: SessionSpec[]) =>
 export const useAppStore = create<AppState>()(
   persist(
     immer((set, get) => ({
+      settings: null,
       teachers: [],
       subjects: [],
       rooms: [],
@@ -174,11 +200,17 @@ export const useAppStore = create<AppState>()(
 
       setBootstrap: (data) =>
         set((s) => {
+          s.settings = data.settings ?? null;
           s.teachers = data.teachers ?? [];
           s.subjects = data.subjects ?? [];
           s.rooms = data.rooms ?? [];
           s.classes = data.classes ?? [];
           s.lessons = data.lessons ?? [];
+        }),
+
+      setSettings: (settings) =>
+        set((s) => {
+          s.settings = settings;
         }),
 
       setLoading: (v) =>
@@ -370,10 +402,7 @@ export const useAppStore = create<AppState>()(
       storage: createJSONStorage(() => localStorage),
       // Only persist changes (unsaved edits) — NOT the server data.
       // Server data is always fetched fresh on mount via useBootstrap.
-      // This prevents stale tmp_ IDs from persisting across sessions.
       partialize: (s) => ({
-        // Only persist unsaved edits — everything else resets on reload.
-        // Timetable results, generation state, and server data are session-only.
         changes: s.changes,
       }),
     },

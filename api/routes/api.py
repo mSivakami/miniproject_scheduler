@@ -14,6 +14,7 @@ import tempfile
 
 from fastapi.responses import StreamingResponse
 from models.orm import (
+    UserSettingsModel,
     TeacherModel, TeacherUnavailableModel,
     SubjectModel, RoomModel, ClassModel,
     LessonBlockModel, GenerationJobModel,
@@ -24,13 +25,15 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
 
 import db.session as store
-from db.session import get_db, load_user
+from db.session import get_db, load_user, parse_breaks
 from auth.verify import get_current_user
 
 from schemas.api import (
+    InstitutionSettingsBase, InstitutionSettingsOut,
     ExportPdfRequest, SaveAllRequest, SaveAllResponse,
     GenerateResponse, JobStatusResponse,
     TimetableResultResponse, TimetableEntryOut,
+    ResetResponse,
 )
 from services.generator import run_generation, get_result
 
@@ -55,7 +58,7 @@ def _integrity_error(e: IntegrityError) -> HTTPException:
 
 def _ensure_loaded(db: Session, uid: str):
     """Load user data into store if not already present."""
-    if not store.get_teachers(uid) and not store.get_subjects(uid):
+    if store.get_settings(uid) is None and not store.get_teachers(uid):
         load_user(db, uid)
 
 
@@ -69,14 +72,126 @@ def _lesson_out(l: dict) -> dict:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# INSTITUTION SETTINGS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/settings", response_model=InstitutionSettingsOut | None, tags=["Settings"])
+def get_settings(user: User, db: DB):
+    """Return the user's institution settings, or null if not yet configured."""
+    uid = user["id"]
+    row = db.query(UserSettingsModel).filter(UserSettingsModel.user_id == uid).first()
+    if not row:
+        return None
+    return InstitutionSettingsOut(
+        institution_name = row.institution_name,
+        academic_year    = row.academic_year,
+        num_days         = row.num_days,
+        num_periods      = row.num_periods,
+        break_periods    = row.break_periods or [],
+    )
+
+
+@router.put("/settings", response_model=InstitutionSettingsOut, tags=["Settings"])
+def save_settings(body: InstitutionSettingsBase, user: User, db: DB):
+    """
+    Upsert institution settings for this user.
+    This must be called first before any other data is added.
+    """
+    uid = user["id"]
+    try:
+        row = db.query(UserSettingsModel).filter(UserSettingsModel.user_id == uid).first()
+        break_list = [{"day": bp.day, "period": bp.period} for bp in body.break_periods]
+
+        if row:
+            row.institution_name = body.institution_name.strip()
+            row.academic_year    = body.academic_year.strip()
+            row.num_days         = body.num_days
+            row.num_periods      = body.num_periods
+            row.break_periods    = break_list
+        else:
+            row = UserSettingsModel(
+                user_id          = uid,
+                institution_name = body.institution_name.strip(),
+                academic_year    = body.academic_year.strip(),
+                num_days         = body.num_days,
+                num_periods      = body.num_periods,
+                break_periods    = break_list,
+            )
+            db.add(row)
+
+        db.commit()
+        db.refresh(row)
+
+        # Re-sync store so generator picks up new settings immediately
+        load_user(db, uid)
+
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"[settings] ERROR: {traceback.format_exc()}")
+        raise HTTPException(500, str(e))
+
+    return InstitutionSettingsOut(
+        institution_name = row.institution_name,
+        academic_year    = row.academic_year,
+        num_days         = row.num_days,
+        num_periods      = row.num_periods,
+        break_periods    = row.break_periods or [],
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RESET — clear all user data
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/reset", response_model=ResetResponse, tags=["Settings"])
+def reset_user_data(user: User, db: DB):
+    """
+    Delete ALL data belonging to this user: settings, teachers, subjects,
+    rooms, classes, lessons, and generation jobs. Cannot be undone.
+    """
+    uid = user["id"]
+    try:
+        # Delete in dependency order (lessons → subjects → teachers/rooms/classes → settings/jobs)
+        # Get all subject IDs for this user to delete their lesson_blocks
+        subject_ids = [
+            s.id for s in db.query(SubjectModel).filter(SubjectModel.user_id == uid).all()
+        ]
+        if subject_ids:
+            db.query(LessonBlockModel).filter(
+                LessonBlockModel.subject_id.in_(subject_ids)
+            ).delete(synchronize_session=False)
+
+        db.query(TeacherModel).filter(TeacherModel.user_id == uid).delete()
+        db.query(SubjectModel).filter(SubjectModel.user_id == uid).delete()
+        db.query(RoomModel).filter(RoomModel.user_id == uid).delete()
+        db.query(ClassModel).filter(ClassModel.user_id == uid).delete()
+        db.query(GenerationJobModel).filter(GenerationJobModel.user_id == uid).delete()
+        db.query(UserSettingsModel).filter(UserSettingsModel.user_id == uid).delete()
+
+        db.commit()
+        store.evict_user(uid)
+        print(f"[reset] Cleared all data for user={uid[:8]}…")
+
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"[reset] ERROR: {traceback.format_exc()}")
+        raise HTTPException(500, str(e))
+
+    return ResetResponse(ok=True, message="All data cleared successfully.")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # BOOTSTRAP — returns all data for the authenticated user
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/bootstrap", tags=["Data"])
 def bootstrap(user: User, db: DB):
     uid = user["id"]
-    _ensure_loaded(db, uid)
+    load_user(db, uid)   # always reload fresh on bootstrap
     return {
+        "settings": store.get_settings(uid),   # None if not configured yet
         "teachers": list(store.get_teachers(uid).values()),
         "subjects": list(store.get_subjects(uid).values()),
         "rooms":    list(store.get_rooms(uid).values()),
@@ -222,7 +337,6 @@ def save_all(body: SaveAllRequest, user: User, db: DB):
                 locked_start_period = item.locked_start_period,
                 locked_duration     = item.locked_duration,
             )
-            # Only allow teachers/classes/rooms belonging to this user
             lesson.teachers = db.query(TeacherModel).filter(
                 TeacherModel.id.in_(item.teacher_ids),
                 TeacherModel.user_id == uid,
@@ -239,7 +353,6 @@ def save_all(body: SaveAllRequest, user: User, db: DB):
             counts["lessons"]["added"] += 1
 
         for lid, item in lc.updated.items():
-            # Verify lesson belongs to user via subject ownership
             l = (
                 db.query(LessonBlockModel)
                 .join(SubjectModel, LessonBlockModel.subject_id == SubjectModel.id)
@@ -303,6 +416,12 @@ def save_all(body: SaveAllRequest, user: User, db: DB):
 @router.post("/generate", response_model=GenerateResponse, tags=["Generation"])
 def generate(background_tasks: BackgroundTasks, user: User, db: DB):
     uid = user["id"]
+
+    # Require settings to be configured before generating
+    settings = db.query(UserSettingsModel).filter(UserSettingsModel.user_id == uid).first()
+    if not settings:
+        raise HTTPException(400, "Institution settings must be configured before generating a timetable.")
+
     job = GenerationJobModel(id=_new_id(), user_id=uid, status="pending")
     db.add(job)
     db.commit()
@@ -332,7 +451,6 @@ def job_status(job_id: str, user: User, db: DB):
 @router.get("/result/{job_id}", response_model=TimetableResultResponse, tags=["Generation"])
 def job_result(job_id: str, user: User, db: DB):
     uid = user["id"]
-    # Verify job belongs to this user
     job = db.query(GenerationJobModel).filter(
         GenerationJobModel.id == job_id,
         GenerationJobModel.user_id == uid,
@@ -340,7 +458,6 @@ def job_result(job_id: str, user: User, db: DB):
     if not job:
         raise HTTPException(404, "Job not found")
 
-    # Result lives in memory — never written to DB
     result = get_result(job_id)
     if not result:
         raise HTTPException(404, "Result not ready")
@@ -357,21 +474,9 @@ def job_result(job_id: str, user: User, db: DB):
 def export_pdf(job_id: str, user: User, db: DB, body: ExportPdfRequest):
     print("[export-pdf] job_id:", job_id)
     print("[export-pdf] body entries count:", len(body.entries))
-    print("[export-pdf] first entry:", body.entries[0] if body.entries else None)
     from services.mapper import fetch_and_map
     from pdf_generation import generate_pdf_timetable
-
     from structures import Timetable, TimeSlot
-
-    PERIODS_PER_DAY = 7
-    DAYS = 5
-    def _make_breaks() -> dict:
-        breaks = {}
-        for day in range(DAYS - 1):
-            breaks[(day, 3)] = Break("Lunch")
-        breaks[(DAYS - 1, 4)] = Break("Lunch")
-        return breaks
-
 
     uid = user["id"]
 
@@ -384,24 +489,25 @@ def export_pdf(job_id: str, user: User, db: DB, body: ExportPdfRequest):
         raise HTTPException(404, "Job not found")
     if job.status != "done":
         raise HTTPException(400, "Timetable not ready — job has not completed successfully")
-    
-    entries = body.entries
+
+    # Load user settings for days/periods/breaks
     _ensure_loaded(db, uid)
-    # Fetch GA structures
+    settings = store.get_settings(uid)
+    DAYS            = settings["num_days"]    if settings else 5
+    PERIODS_PER_DAY = settings["num_periods"] if settings else 7
+    breaks          = parse_breaks(settings["break_periods"] if settings else [])
+
+    entries = body.entries
     teachers, subjects, rooms, classes, lesson_blocks = fetch_and_map(uid)
-    
 
     # Build GA Timetable
-    breaks = _make_breaks()
     locked = [lb for lb in lesson_blocks if lb.is_locked]
     tt = Timetable(DAYS, PERIODS_PER_DAY, breaks, locked)
 
     # Build reverse map: db_lesson_id -> GA LessonBlock list
-    # KEY FIX: use lb.db_id (the original DB id stored on GA object) not get_db_lesson_id()
-    # Build reverse map: lesson_id -> GA LessonBlock list
     db_to_ga: dict[str, list] = {}
     for lb in lesson_blocks:
-        db_id = lb.id.rsplit("_", 1)[0]  # strips _0, _1, _locked etc
+        db_id = lb.id.rsplit("_", 1)[0]
         db_to_ga.setdefault(db_id, []).append(lb)
 
     for entry in entries:

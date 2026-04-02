@@ -5,7 +5,7 @@ SQLAlchemy ORM models aligned to schema.sql.
 Schema is managed by Neon SQL Editor — Python never creates tables.
 
 User-scoped tables (have user_id):
-  teachers, subjects, rooms, classes, generation_jobs
+  institution_settings, teachers, subjects, rooms, classes, generation_jobs
 
 No user_id:
   lesson_blocks — ownership derived via subject_id → subjects.user_id
@@ -43,6 +43,20 @@ lesson_rooms = Table(
     Column("lesson_id", String, ForeignKey("lesson_blocks.id", ondelete="CASCADE"),  primary_key=True),
     Column("room_id",   String, ForeignKey("rooms.id",         ondelete="RESTRICT"), primary_key=True),
 )
+
+
+# ── Institution settings (one row per user) ───────────────────────────────────
+
+class UserSettingsModel(Base):
+    __tablename__ = "institution_settings"
+    user_id          = Column(String,  primary_key=True)
+    institution_name = Column(String,  nullable=False, default="")
+    academic_year    = Column(String,  nullable=False, default="")
+    num_days         = Column(Integer, nullable=False, default=5)
+    num_periods      = Column(Integer, nullable=False, default=7)
+    # JSON array of {day: int, period: int} dicts
+    break_periods    = Column(JSONB,   nullable=False, default=list)
+    updated_at       = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 # ── Core entities (user-scoped) ───────────────────────────────────────────────

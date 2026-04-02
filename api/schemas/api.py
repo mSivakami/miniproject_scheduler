@@ -1,20 +1,47 @@
 """schemas/api.py — Pydantic request/response models."""
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field, model_validator
 
 
 # ── Primitives ────────────────────────────────────────────────────────────────
 
 class UnavailableSlot(BaseModel):
-    day:    int = Field(..., ge=0, le=4)
-    period: int = Field(..., ge=0, le=6)
+    day:    int = Field(..., ge=0, le=5)
+    period: int = Field(..., ge=0, le=10)
+
+
+class BreakSlot(BaseModel):
+    """A single break period in the grid (day × period)."""
+    day:    int = Field(..., ge=0, le=5)
+    period: int = Field(..., ge=0, le=10)
 
 
 class SessionSpec(BaseModel):
     """Weekly session type — duration=periods per session, count=times per week."""
     duration: int = Field(..., ge=1, le=3)
     count:    int = Field(..., ge=1, le=10)
+
+
+# ── Institution Settings ──────────────────────────────────────────────────────
+
+class InstitutionSettingsBase(BaseModel):
+    institution_name: str           = Field("", description="Name of the institution")
+    academic_year:    str           = Field("", description="e.g. 2024-2025")
+    num_days:         int           = Field(5,  ge=1, le=6,  description="Working days per week (1-6)")
+    num_periods:      int           = Field(7,  ge=1, le=11, description="Max periods per day (1-11)")
+    break_periods:    List[BreakSlot] = Field(
+        default_factory=list,
+        description="Grid cells (day, period) that are break slots",
+    )
+
+
+class InstitutionSettingsOut(InstitutionSettingsBase):
+    """Returned from GET /settings — same shape, always present."""
+    pass
+
+    class Config:
+        from_attributes = True
 
 
 # ── Teacher ───────────────────────────────────────────────────────────────────
@@ -75,8 +102,8 @@ class LessonBase(BaseModel):
     room_ids:            list[str]
     sessions:            list[SessionSpec] = []
     is_locked:           bool              = False
-    locked_day:          Optional[int]     = Field(None, ge=0, le=4)
-    locked_start_period: Optional[int]     = Field(None, ge=0, le=6)
+    locked_day:          Optional[int]     = Field(None, ge=0, le=5)
+    locked_start_period: Optional[int]     = Field(None, ge=0, le=10)
     locked_duration:     Optional[int]     = Field(None, ge=1, le=3)
 
     @model_validator(mode="after")
@@ -140,6 +167,13 @@ class SaveAllRequest(BaseModel):
 class SaveAllResponse(BaseModel):
     ok:     bool
     counts: dict[str, dict[str, int]]
+
+
+# ── Reset ─────────────────────────────────────────────────────────────────────
+
+class ResetResponse(BaseModel):
+    ok:      bool
+    message: str
 
 
 # ── Generation ────────────────────────────────────────────────────────────────

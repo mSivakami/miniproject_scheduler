@@ -34,7 +34,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-
 export const fetchBootstrap = () => request<any>("/bootstrap");
 export const saveAll = (body: any) =>
   request<any>("/save-all", { method: "POST", body: JSON.stringify(body) });
@@ -44,6 +43,20 @@ export const pollStatus = (id: string) => request<any>(`/status/${id}`);
 export const fetchResult = (id: string) => request<any>(`/result/${id}`);
 export const reloadStore = () =>
   request<any>("/reload-store", { method: "POST" });
+
+// ── Institution Settings ──────────────────────────────────────────────────────
+
+export const fetchSettings = () => request<any | null>("/settings");
+
+export const saveSettings = (body: any) =>
+  request<any>("/settings", { method: "PUT", body: JSON.stringify(body) });
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+
+export const resetUserData = () =>
+  request<{ ok: boolean; message: string }>("/reset", { method: "POST" });
+
+// ── PDF Export ────────────────────────────────────────────────────────────────
 
 export const exportPdf = async (jobId: string, entries: any[]) => {
   const token = await getSessionToken();

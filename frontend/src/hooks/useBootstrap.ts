@@ -44,7 +44,6 @@ export function useSave() {
       setBootstrap(fresh);
 
       // ── PASS 2: Save lessons with resolved real IDs ────────────────────
-      // Get latest changes from store (subjects may have been cleared)
       const latestChanges = useAppStore.getState().changes;
 
       const resolvedLessons = resolveLessonIds(
@@ -111,9 +110,6 @@ function stripId(item: any) {
 /**
  * Resolve tmp_ IDs in lesson foreign key fields.
  * After pass 1 + bootstrap, all entities have real UUIDs.
- * Any lesson referencing a tmp_ subject_id means that subject
- * was just saved — we find the real ID from the fresh bootstrap data.
- * Lessons whose subject still resolves to tmp_ are skipped.
  */
 function resolveLessonIds(
   lessonChanges: any,
@@ -127,16 +123,13 @@ function resolveLessonIds(
   const roomIds = new Set(freshRooms.map((x: any) => x.id));
   const classIds = new Set(freshClasses.map((x: any) => x.id));
 
-  // Filter a list of IDs — drop any tmp_ ones (not saved yet)
   const resolveIds = (ids: string[], valid: Set<string>): string[] =>
     ids.filter((id) => !id.startsWith("tmp_") && valid.has(id));
 
   const added = lessonChanges.added
     .map((l: any) => {
-      // Skip lesson if subject_id is still tmp_ (subject not saved)
       if (l.subject_id?.startsWith("tmp_")) return null;
       if (!subjectIds.has(l.subject_id)) return null;
-
       const { id, ...rest } = l;
       return {
         ...rest,

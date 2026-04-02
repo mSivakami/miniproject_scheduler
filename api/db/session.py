@@ -10,6 +10,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session, selectinload
 from models.orm import (
+    UserSettingsModel,
     TeacherModel, SubjectModel, RoomModel,
     ClassModel, LessonBlockModel,
 )
@@ -43,6 +44,7 @@ _versions: dict[str, int]  = {}
 
 def _empty() -> dict:
     return {
+        "settings": None,   # None = not configured yet
         "teachers": {},
         "subjects": {},
         "rooms":    {},
@@ -65,6 +67,16 @@ def _bump(uid: str):
 
 
 # ── Serialise ORM → plain dict ────────────────────────────────────────────────
+
+def _settings_dict(s: UserSettingsModel) -> dict:
+    return {
+        "institution_name": s.institution_name,
+        "academic_year":    s.academic_year,
+        "num_days":         s.num_days,
+        "num_periods":      s.num_periods,
+        "break_periods":    s.break_periods or [],
+    }
+
 
 def _teacher_dict(t: TeacherModel) -> dict:
     return {
@@ -125,6 +137,12 @@ def load_user(db: Session, uid: str):
     """Load all data for one user from Neon DB into the store as plain dicts."""
     _ensure(uid)
 
+    # Settings (may be None if user has not configured yet)
+    settings_row = db.query(UserSettingsModel).filter(
+        UserSettingsModel.user_id == uid
+    ).first()
+    _store[uid]["settings"] = _settings_dict(settings_row) if settings_row else None
+
     teachers = (
         db.query(TeacherModel)
         .filter(TeacherModel.user_id == uid)
@@ -165,6 +183,7 @@ def load_user(db: Session, uid: str):
     _bump(uid)
     print(
         f"[store] user={uid[:8]}… "
+        f"settings={'yes' if _store[uid]['settings'] else 'NO'} "
         f"teachers={len(_store[uid]['teachers'])} "
         f"subjects={len(_store[uid]['subjects'])} "
         f"rooms={len(_store[uid]['rooms'])} "
@@ -180,8 +199,21 @@ def evict_user(uid: str):
 
 # ── Per-user read helpers (return plain dicts) ────────────────────────────────
 
+def get_settings(uid: str) -> dict | None: return _store.get(uid, {}).get("settings", None)
 def get_teachers(uid: str) -> dict: return _store.get(uid, {}).get("teachers", {})
 def get_subjects(uid: str) -> dict: return _store.get(uid, {}).get("subjects", {})
 def get_rooms(uid: str)    -> dict: return _store.get(uid, {}).get("rooms",    {})
 def get_classes(uid: str)  -> dict: return _store.get(uid, {}).get("classes",  {})
 def get_lessons(uid: str)  -> dict: return _store.get(uid, {}).get("lessons",  {})
+
+
+# ── Break periods helper ──────────────────────────────────────────────────────
+
+def parse_breaks(break_periods: list) -> dict:
+    """
+    Convert stored break_periods JSON to the GA breaks dict.
+    break_periods: [{"day": 0, "period": 3}, ...]
+    Returns: {(day, period): Break("Break"), ...}
+    """
+    from structures import Break
+    return {(int(bp["day"]), int(bp["period"])): Break("Break") for bp in (break_periods or [])}

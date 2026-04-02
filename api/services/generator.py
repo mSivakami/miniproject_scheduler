@@ -4,6 +4,7 @@ services/generator.py
 Runs GA in a background thread for a specific user.
 Results are stored in memory only — not persisted to DB.
 Frontend fetches the result once and holds it for the session.
+Uses each user's institution settings for days, periods, and break slots.
 """
 from __future__ import annotations
 import time
@@ -11,14 +12,15 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from db.session import SessionLocal, load_user
+from db.session import SessionLocal, load_user, get_settings, parse_breaks
 from models.orm import GenerationJobModel
 from services.mapper import fetch_and_map, get_db_lesson_id
 from genetic import GeneticTimetableScheduler
 from structures import Break
 
-DAYS            = 5
-PERIODS_PER_DAY = 7
+# Fallback defaults if settings are not configured
+DEFAULT_DAYS            = 5
+DEFAULT_PERIODS_PER_DAY = 7
 
 # In-memory result store: { job_id: { timetable_id, fitness, entries, generation_time_seconds } }
 _results: dict[str, dict] = {}
@@ -26,14 +28,6 @@ _results: dict[str, dict] = {}
 
 def get_result(job_id: str) -> dict | None:
     return _results.get(job_id)
-
-
-def _make_breaks() -> dict:
-    breaks = {}
-    for day in range(DAYS - 1):
-        breaks[(day, 3)] = Break("Lunch")
-    breaks[(DAYS - 1, 4)] = Break("Lunch")
-    return breaks
 
 
 def run_generation(job_id: str, user_id: str):
@@ -52,6 +46,18 @@ def run_generation(job_id: str, user_id: str):
         if not lesson_blocks:
             raise ValueError("No lesson blocks configured — nothing to schedule.")
 
+        # Read institution settings for this user
+        settings        = get_settings(user_id)
+        days            = settings["num_days"]    if settings else DEFAULT_DAYS
+        periods_per_day = settings["num_periods"] if settings else DEFAULT_PERIODS_PER_DAY
+        breaks          = parse_breaks(settings["break_periods"] if settings else [])
+
+        print(
+            f"[generator] user={user_id[:8]}… "
+            f"days={days} periods={periods_per_day} "
+            f"breaks={len(breaks)} lesson_blocks={len(lesson_blocks)}"
+        )
+
         ga_start = time.time()
         scheduler = GeneticTimetableScheduler(
             teachers=teachers,
@@ -59,9 +65,9 @@ def run_generation(job_id: str, user_id: str):
             rooms=rooms,
             classes=classes,
             lesson_blocks=lesson_blocks,
-            days=DAYS,
-            periods_per_day=PERIODS_PER_DAY,
-            breaks=_make_breaks(),
+            days=days,
+            periods_per_day=periods_per_day,
+            breaks=breaks,
         )
         best_tt, history = scheduler.evolve()
         ga_seconds    = round(time.time() - ga_start, 2)

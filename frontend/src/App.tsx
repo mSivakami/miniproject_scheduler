@@ -20,9 +20,11 @@ import RoomsPage from "./pages/RoomsPage";
 import ClassesPage from "./pages/ClassesPage";
 import LessonsPage from "./pages/LessonsPage";
 import GeneratePage from "./pages/GeneratePage";
+import SettingsPage from "./pages/SettingsPage";
 import "./App.css";
 
 type Page =
+  | "settings"
   | "teachers"
   | "subjects"
   | "rooms"
@@ -31,6 +33,7 @@ type Page =
   | "generate";
 
 const NAV: { key: Page; label: string; icon: string }[] = [
+  { key: "settings", label: "Settings", icon: "⚙️" },
   { key: "teachers", label: "Teachers", icon: "👤" },
   { key: "subjects", label: "Subjects", icon: "📚" },
   { key: "rooms", label: "Rooms", icon: "🏫" },
@@ -53,8 +56,6 @@ function AuthPage() {
         background: "var(--bg)",
       }}
     >
-      {/* AuthView handles: sign-in, sign-up, forgot-password, callback, etc.
-          Google OAuth button appears automatically when configured in Neon Console */}
       <AuthView pathname={pathname} />
     </div>
   );
@@ -67,6 +68,7 @@ function MainApp({ userEmail }: { userEmail: string }) {
   const { save } = useSave();
   const navigate = useNavigate();
   const {
+    settings,
     loading,
     saving,
     saveError,
@@ -74,8 +76,17 @@ function MainApp({ userEmail }: { userEmail: string }) {
     clearChanges,
     resetGeneration,
   } = useAppStore();
-  const [page, setPage] = useState<Page>("teachers");
+
+  // Default to settings page if not yet configured; otherwise teachers
+  const [page, setPage] = useState<Page>("settings");
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
+  // Once loading finishes, jump to teachers if settings already exist
+  useEffect(() => {
+    if (!loading && settings) {
+      setPage((prev) => (prev === "settings" ? "teachers" : prev));
+    }
+  }, [loading, settings]);
 
   const handleSave = async () => {
     await save();
@@ -94,27 +105,91 @@ function MainApp({ userEmail }: { userEmail: string }) {
   };
 
   const dirty = hasChanges();
+  const settingsConfigured = !!settings;
 
   return (
     <div className="app">
       <aside className="sidebar">
         <div className="sidebar-brand">
           <span className="brand-icon">⊞</span>
-          <span className="brand-text">TimetableAI</span>
+          <span className="brand-text">Genetic-Scheduler</span>
         </div>
 
-        <nav className="sidebar-nav">
-          {NAV.map(({ key, label, icon }) => (
-            <button
-              key={key}
-              className={`nav-item ${page === key ? "active" : ""}`}
-              onClick={() => setPage(key)}
+        {/* Institution name in sidebar if configured */}
+        {settings?.institution_name && (
+          <div
+            style={{
+              padding: "8px 18px 6px",
+              borderBottom: "1px solid var(--border)",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "var(--mono)",
+                fontSize: 9,
+                color: "var(--text3)",
+                letterSpacing: "0.06em",
+              }}
             >
-              <span className="nav-icon">{icon}</span>
-              <span className="nav-label">{label}</span>
-              {key === "generate" && <span className="nav-badge">GA</span>}
-            </button>
-          ))}
+              INSTITUTION
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--text2)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                marginTop: 2,
+              }}
+            >
+              {settings.institution_name}
+            </div>
+            {settings.academic_year && (
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "var(--text3)",
+                  fontFamily: "var(--mono)",
+                }}
+              >
+                {settings.academic_year}
+              </div>
+            )}
+          </div>
+        )}
+
+        <nav className="sidebar-nav">
+          {NAV.map(({ key, label, icon }) => {
+            // Lock non-settings pages until settings are configured
+            const locked = key !== "settings" && !settingsConfigured;
+            return (
+              <button
+                key={key}
+                className={`nav-item ${page === key ? "active" : ""} ${locked ? "disabled" : ""}`}
+                onClick={() => !locked && setPage(key)}
+                disabled={locked}
+                title={locked ? "Configure settings first" : undefined}
+                style={
+                  locked ? { opacity: 0.35, cursor: "not-allowed" } : undefined
+                }
+              >
+                <span className="nav-icon">{icon}</span>
+                <span className="nav-label">{label}</span>
+                {key === "generate" && !locked && (
+                  <span className="nav-badge">GA</span>
+                )}
+                {key === "settings" && !settingsConfigured && (
+                  <span
+                    className="nav-badge"
+                    style={{ background: "var(--amber)", color: "#000" }}
+                  >
+                    !
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">
@@ -188,6 +263,9 @@ function MainApp({ userEmail }: { userEmail: string }) {
         )}
         {!loading && (
           <>
+            {page === "settings" && (
+              <SettingsPage onSaved={() => setPage("teachers")} />
+            )}
             {page === "teachers" && <TeachersPage />}
             {page === "subjects" && <SubjectsPage />}
             {page === "rooms" && <RoomsPage />}
@@ -204,7 +282,6 @@ function MainApp({ userEmail }: { userEmail: string }) {
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  // useSession() from BetterAuthReactAdapter — reactive hook
   const session = authClient.useSession();
 
   if (session.isPending) {
@@ -229,7 +306,6 @@ export default function App() {
   }
 
   if (!session.data) {
-    // Not authenticated — only allow auth routes
     return (
       <Routes>
         <Route path="/auth/:pathname" element={<AuthPage />} />
@@ -238,11 +314,9 @@ export default function App() {
     );
   }
 
-  // Authenticated
   const email = session.data.user?.email ?? "";
   return (
     <Routes>
-      {/* Keep callback route accessible for OAuth redirect */}
       <Route path="/auth/callback" element={<AuthPage />} />
       <Route path="/auth/:pathname" element={<Navigate to="/" replace />} />
       <Route path="*" element={<MainApp userEmail={email} />} />
