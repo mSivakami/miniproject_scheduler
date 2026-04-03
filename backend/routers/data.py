@@ -150,12 +150,12 @@ def sync_all_data(
         if data.institution.break_after_period is not None:
             inst.break_after_period = data.institution.break_after_period
 
-        inst.break_mask = compute_break_mask(
+        inst.break_mask = str(compute_break_mask(
             inst.days_per_week, inst.periods_per_day, inst.break_after_period
-        )
-        inst.working_slot_mask = compute_working_mask(
-            inst.days_per_week, inst.periods_per_day, inst.break_mask
-        )
+        ))
+        inst.working_slot_mask = str(compute_working_mask(
+            inst.days_per_week, inst.periods_per_day, int(inst.break_mask)
+        ))
 
     # Helper for simple entity sync
     def sync_simple_entities(ModelClass, new_items):
@@ -169,8 +169,14 @@ def sync_all_data(
             if item.id and item.id in existing_dict:
                 obj = existing_dict.pop(item.id)
                 for k, v in item_data.items():
+                    # Handle bitmask stringification
+                    if k == 'available_mask' and v is not None:
+                        v = str(v)
                     setattr(obj, k, v)
             else:
+                # Handle bitmask stringification for new objects
+                if 'available_mask' in item_data and item_data['available_mask'] is not None:
+                    item_data['available_mask'] = str(item_data['available_mask'])
                 obj = ModelClass(institution_id=inst.id, **item_data)
                 if item.id:
                     obj.id = item.id

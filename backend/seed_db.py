@@ -53,7 +53,7 @@ def seed():
                 id=tid,
                 institution_id=inst.id,
                 name=t.name,
-                available_mask=t.available_mask,
+                available_mask=str(t.available_mask),
                 max_per_day=t.max_per_day,
                 max_per_week=t.max_per_week
             )
@@ -84,7 +84,7 @@ def seed():
                 institution_id=inst.id,
                 name=r.name,
                 is_lab=r.is_lab,
-                available_mask=r.available_mask
+                available_mask=str(r.available_mask)
             )
             db.add(dr)
             db_rooms[rid] = dr

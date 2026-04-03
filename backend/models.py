@@ -70,8 +70,8 @@ class Institution(Base):
     days_per_week    = Column(Integer, default=5)
     periods_per_day  = Column(Integer, default=7)
     break_after_period = Column(Integer, default=3)  # 0-indexed: break after this period
-    break_mask       = Column(BigInteger, default=0)
-    working_slot_mask = Column(BigInteger, default=0)
+    break_mask       = Column(String, default="0")
+    working_slot_mask = Column(String, default="0")
     created_at       = Column(DateTime, server_default=func.now())
     updated_at       = Column(DateTime, onupdate=func.now())
 
@@ -93,7 +93,7 @@ class Teacher(Base):
     institution_id  = Column(String, ForeignKey("institutions.id", ondelete="CASCADE"), nullable=False)
     name            = Column(String, nullable=False)
     short_name      = Column(String, nullable=True)
-    available_mask  = Column(BigInteger, default=-1)  # -1 = all bits = always available
+    available_mask  = Column(String, default="-1")  # -1 = all bits = always available
     max_per_day     = Column(Integer, default=6)
     max_per_week    = Column(Integer, default=30)
     created_at      = Column(DateTime, server_default=func.now())
@@ -140,7 +140,7 @@ class Room(Base):
     institution_id  = Column(String, ForeignKey("institutions.id", ondelete="CASCADE"), nullable=False)
     name            = Column(String, nullable=False)
     is_lab          = Column(Boolean, default=False)
-    available_mask  = Column(BigInteger, default=-1)
+    available_mask  = Column(String, default="-1")
     created_at      = Column(DateTime, server_default=func.now())
 
     institution     = relationship("Institution", back_populates="rooms")
@@ -198,8 +198,8 @@ class MiniGroup(Base):
     days_per_week   = Column(Integer, default=5)
     periods_per_day = Column(Integer, default=7)
     break_after_period = Column(Integer, default=3)
-    break_mask      = Column(BigInteger, default=0)
-    working_slot_mask = Column(BigInteger, default=0)
+    break_mask      = Column(String, default="0")
+    working_slot_mask = Column(String, default="0")
     created_at      = Column(DateTime, server_default=func.now())
     updated_at      = Column(DateTime, onupdate=func.now())
 

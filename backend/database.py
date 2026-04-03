@@ -49,8 +49,8 @@ def get_or_create_institution(db) -> 'Institution':
             break_after_period=3
         )
         # Compute masks for defaults
-        inst.break_mask = compute_break_mask(inst.days_per_week, inst.periods_per_day, inst.break_after_period)
-        inst.working_slot_mask = compute_working_mask(inst.days_per_week, inst.periods_per_day, inst.break_mask)
+        inst.break_mask = str(compute_break_mask(inst.days_per_week, inst.periods_per_day, inst.break_after_period))
+        inst.working_slot_mask = str(compute_working_mask(inst.days_per_week, inst.periods_per_day, int(inst.break_mask)))
         db.add(inst)
         db.commit()
         db.refresh(inst)

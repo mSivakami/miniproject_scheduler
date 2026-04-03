@@ -39,8 +39,8 @@ def create_mini_group(data: MiniGroupCreate, db: Session = Depends(get_db)):
         days_per_week=data.days_per_week,
         periods_per_day=data.periods_per_day,
         break_after_period=data.break_after_period,
-        break_mask=b_mask,
-        working_slot_mask=w_mask,
+        break_mask=str(b_mask),
+        working_slot_mask=str(w_mask),
     )
     if data.id:
         obj.id = data.id
@@ -62,12 +62,12 @@ def update_mini_group(group_id: str, data: MiniGroupCreate, db: Session = Depend
     obj.periods_per_day = data.periods_per_day
     obj.break_after_period = data.break_after_period
     
-    obj.break_mask = compute_break_mask(
+    obj.break_mask = str(compute_break_mask(
         obj.days_per_week, obj.periods_per_day, obj.break_after_period
-    )
-    obj.working_slot_mask = compute_working_mask(
-        obj.days_per_week, obj.periods_per_day, obj.break_mask
-    )
+    ))
+    obj.working_slot_mask = str(compute_working_mask(
+        obj.days_per_week, obj.periods_per_day, int(obj.break_mask)
+    ))
 
     db.commit()
     db.refresh(obj)

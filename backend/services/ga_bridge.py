@@ -40,7 +40,7 @@ def _db_to_ga_structures(institution, teachers, subjects, rooms, classrooms, les
         ga_teachers[t.id] = GATeacher(
             id=t.id,
             name=t.name,
-            available_mask=t.available_mask if t.available_mask != -1 else (1 << 64) - 1,
+            available_mask=int(t.available_mask) if int(t.available_mask) != -1 else (1 << 64) - 1,
             max_per_day=t.max_per_day,
             max_per_week=t.max_per_week,
         )
@@ -63,7 +63,7 @@ def _db_to_ga_structures(institution, teachers, subjects, rooms, classrooms, les
             id=r.id,
             name=r.name,
             is_lab=r.is_lab,
-            available_mask=r.available_mask if r.available_mask != -1 else (1 << 64) - 1,
+            available_mask=int(r.available_mask) if int(r.available_mask) != -1 else (1 << 64) - 1,
         )
 
     # Classes (classrooms in DB terminology)
@@ -161,7 +161,7 @@ def run_ga_from_db(institution, teachers, subjects, rooms, classrooms, lesson_bl
     constraints = ConstraintSettings()
 
     # Run!
-    engine = GAEngine(data=data, config=config, constraints=constraints, seed=seed)
+    engine = GAEngine(data=data, config=config, constraints=constraints)
     result: GAResult = engine.run()
 
     # Build timetable for display
@@ -196,48 +196,50 @@ def _expand_timetable(timetable: Timetable, data, inst_settings) -> dict:
 
     # Build per-class grids
     class_views = {}
-    for class_id, class_name in [(c.id, c.name) for c in timetable.classes]:
+    for class_id, grid_obj in timetable.by_class.items():
         grid = []
         for d in range(days):
             day_row = []
             for p in range(periods):
-                cell = timetable.get_cell(class_id, d, p)
+                cell = grid_obj.get_cell(d, p)
                 if cell:
                     day_row.append({
                         "block_id": cell.block_id,
                         "subject_name": cell.subject_name,
                         "teacher_names": cell.teacher_names,
-                        "room_name": cell.room_name,
+                        "room_name": ", ".join(cell.room_ids) if cell.room_ids else "—",
                         "is_lab": cell.is_lab,
                         "is_locked": cell.is_locked,
-                        "is_continuation": cell.is_continuation,
-                        "duration": cell.duration,
+                        "is_continuation": p > cell.period,
+                        "duration": cell.span,
                     })
                 else:
                     day_row.append(None)
             grid.append(day_row)
-        class_views[class_id] = {"name": class_name, "grid": grid}
+        class_views[class_id] = {"name": grid_obj.entity_name, "grid": grid}
 
     # Build per-teacher grids
     teacher_views = {}
-    for teacher_id, teacher_name in [(t.id, t.name) for t in timetable.teachers]:
+    for teacher_id, grid_obj in timetable.by_teacher.items():
         grid = []
         for d in range(days):
             day_row = []
             for p in range(periods):
-                cell = timetable.get_teacher_cell(teacher_id, d, p)
+                cell = grid_obj.get_cell(d, p)
                 if cell:
                     day_row.append({
                         "block_id": cell.block_id,
                         "subject_name": cell.subject_name,
-                        "class_names": cell.class_names,
-                        "room_name": cell.room_name,
+                        "class_names": [data.orig_classes[cid].name if cid in data.orig_classes else cid for cid in cell.class_ids],
+                        "room_name": ", ".join(cell.room_ids) if cell.room_ids else "—",
                         "is_lab": cell.is_lab,
+                        "is_continuation": p > cell.period,
+                        "duration": cell.span,
                     })
                 else:
                     day_row.append(None)
             grid.append(day_row)
-        teacher_views[teacher_id] = {"name": teacher_name, "grid": grid}
+        teacher_views[teacher_id] = {"name": grid_obj.entity_name, "grid": grid}
 
     return {
         "metadata": {
