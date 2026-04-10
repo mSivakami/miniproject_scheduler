@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 database.py — SQLAlchemy engine + session for SQLite
 =====================================================

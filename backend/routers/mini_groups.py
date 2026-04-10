@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 mini_groups.py — Mini-Group CRUD
 """

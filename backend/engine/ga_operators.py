@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 ga_operators.py — Crossover & Mutation Operators
 =================================================

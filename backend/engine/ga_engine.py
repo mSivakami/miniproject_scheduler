@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 ga_engine.py — ChromaSchedule Genetic Algorithm Engine
 =======================================================
@@ -325,13 +326,13 @@ class GAEngine:
         time_ms = int((time.perf_counter() - start_time) * 1000)
 
         if cfg.verbose:
-            print(f"\n  {'─'*60}")
+            print(f"\n  {'-'*60}")
             print(f"  GA complete: {status} @ gen {generation}")
             print(f"  Best fitness: {best_chr.fitness:.1f} | "
                   f"Hard: {best_chr.hard_violations} | "
                   f"Soft: {best_chr.soft_violations} | "
                   f"Time: {time_ms}ms")
-            print(f"  {'─'*60}\n")
+            print(f"  {'-'*60}\n")
             if cfg.adaptation_window:
                 print(f"  Adaptive controller final state:")
                 print(adaptive.summary())
@@ -388,7 +389,7 @@ def _log_gen(generation: int, best: Chromosome, max_gen: int):
     bar_len = 20
     pct     = generation / max_gen if max_gen > 0 else 0
     filled  = int(bar_len * pct)
-    bar     = "█" * filled + "░" * (bar_len - filled)
+    bar     = "#" * filled + "-" * (bar_len - filled)
     print(f"  Gen {generation:>5} [{bar}] "
           f"fit={best.fitness:>10.1f}  "
           f"hard={best.hard_violations:>3}  "

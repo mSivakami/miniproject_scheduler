@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 ga_fitness.py — Constraint Definitions & Fitness Evaluation
 ============================================================
@@ -79,6 +80,7 @@ class ConstraintSettings:
     S9: bool  = True;  S9_weight: float = 0.8   # prefer gaps on last day(s) of week — pack Mon–Thu
     S10: bool = True;  S10_weight: float = 2.0  # max 1 lab per class per day
     S11: bool = True;  S11_weight: float = 3.0  # first period must not be empty if there are assigned classes that day
+    avoid_morning_lab: bool = False; avoid_morning_lab_weight: float = 0.5
 
     # S9 tuning: how many trailing days to treat as "prefer-empty"
     # e.g. last_day_gap_days=1 → penalise lessons on Fri only
@@ -93,6 +95,7 @@ class ConstraintSettings:
         """Only hard constraints — fastest fitness evaluation."""
         c = cls()
         c.S1 = c.S2 = c.S3 = c.S4 = c.S5 = c.S6 = c.S7 = c.S8 = c.S9 = c.S10 = c.S11 = False
+        c.avoid_morning_lab = False
         return c
 
     @classmethod
@@ -328,6 +331,10 @@ def evaluate(chr_: Chromosome, data: ProblemData, cs: ConstraintSettings) -> flo
             if last_period >= periods - 1:
                 penalty += SOFT_BASE * cs.S2_weight
                 soft_count += 1
+
+        if cs.avoid_morning_lab and block.is_lab and sp < min(2, periods):
+            penalty += SOFT_BASE * cs.avoid_morning_lab_weight
+            soft_count += 1
 
         # ── S3: Same subject same day same class ──────────────────────────────
         if cs.S3:
@@ -744,6 +751,9 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
             if sp + dur - 1 >= periods - 1:
                 add("S2", f"{block.subject_name} ends at last period on Day{day+1}", block.id)
 
+        if cs.avoid_morning_lab and block.is_lab and sp < min(2, periods):
+            add("avoid_morning_lab", f"{block.subject_name} is scheduled in the morning on Day{day+1}", block.id)
+
 
         # S3: Same subject twice same day same class
         if cs.S3:
@@ -840,27 +850,28 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
                             add("S4", f"Class {data.classes[ci].id} has a free period "
                                       f"before end of Day{d+1} at P{p+1}")
 
-        # S10: Max 1 lab per day per class
-        if cs.S10:
-            for ci in block.class_indices:
-                if block.is_lab and state.class_lab_daily[ci][gene.day] > 1:
+    # S10: Max 1 lab per day per class
+    if cs.S10:
+        for ci in range(len(data.classes)):
+            for d in range(data.days):
+                if state.class_lab_daily[ci][d] > 1:
                     add("S10", f"Class {data.classes[ci].id} has multiple lab sessions "
-                               f"on Day{gene.day+1}", block.id)
+                               f"on Day{d+1}", "")
 
-        # S11: First period empty
-        if cs.S11:
-            for ci in range(len(data.classes)):
-                mask = state.class_used[ci]
-                for d in range(data.days):
-                    has_classes = False
-                    for p in range(periods):
-                        if mask & (1 << (d * periods + p)):
-                            has_classes = True
-                            break
-                    if has_classes:
-                        if not (mask & (1 << (d * periods + 0))):
-                            add("S11", f"Class {data.classes[ci].id} has classes on Day{d+1} "
-                                       f"but the first period is empty", "")
+    # S11: First period empty
+    if cs.S11:
+        for ci in range(len(data.classes)):
+            mask = state.class_used[ci]
+            for d in range(data.days):
+                has_classes = False
+                for p in range(periods):
+                    if mask & (1 << (d * periods + p)):
+                        has_classes = True
+                        break
+                if has_classes:
+                    if not (mask & (1 << (d * periods + 0))):
+                        add("S11", f"Class {data.classes[ci].id} has classes on Day{d+1} "
+                                   f"but the first period is empty", "")
 
     # S8: Consecutive distinct blocks for teacher
     if cs.S8:

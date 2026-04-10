@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 ga_adaptive.py — Adaptive Parameter Control
 ============================================

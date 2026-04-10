@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 structures.py — ChromaSchedule Core Data Structures
 ====================================================
@@ -239,9 +240,9 @@ class LockedLessonBuilder:
         if not self._entries:
             print("  [LockedLessonBuilder] No locked lessons.")
             return
-        print(f"\n  {'─'*60}")
+        print(f"\n  {'-'*60}")
         print(f"  Locked Lessons ({len(self._entries)} blocks):")
-        print(f"  {'─'*60}")
+        print(f"  {'-'*60}")
         days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         for e in self._entries:
             day_str = days[e['day']] if e['day'] < len(days) else f"Day{e['day']}"
@@ -249,5 +250,5 @@ class LockedLessonBuilder:
                   f"  dur={e['duration']}"
                   f"  teachers={e['teacher_ids']}"
                   f"  class={e['class_ids']}")
-        print(f"  {'─'*60}\n")
+        print(f"  {'-'*60}\n")
  

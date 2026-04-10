@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 ga_preflight.py — Pre-Flight Validator & Hill Climbing
 =======================================================
@@ -49,20 +50,20 @@ class PreflightResult:
     errors:    List[str] = field(default_factory=list)
 
     def print_report(self):
-        status = "✓ FEASIBLE" if self.feasible else "✗ INFEASIBLE"
-        print(f"\n  {'─'*60}")
+        status = "OK FEASIBLE" if self.feasible else "X INFEASIBLE"
+        print(f"\n  {'-'*60}")
         print(f"  Pre-flight Check: {status}")
         if self.errors:
             print(f"  ERRORS ({len(self.errors)}):")
             for e in self.errors:
-                print(f"    ✗ {e}")
+                print(f"    X {e}")
         if self.warnings:
             print(f"  WARNINGS ({len(self.warnings)}):")
             for w in self.warnings:
-                print(f"    ⚠ {w}")
+                print(f"    ! {w}")
         if not self.errors and not self.warnings:
             print("  All checks passed — problem looks schedulable.")
-        print(f"  {'─'*60}\n")
+        print(f"  {'-'*60}\n")
 
 
 # ──────────────────────────────────────────────────────────────────────────────

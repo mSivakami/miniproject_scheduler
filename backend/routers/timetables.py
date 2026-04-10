@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 timetables.py — Saved timetable CRUD (max 5)
 """
@@ -10,6 +11,7 @@ from typing import List
 from database import get_db, get_or_create_institution
 from models import GeneratedTimetable
 from schemas import TimetableSave, TimetableOut, TimetableDetailOut
+from routers.auth import CurrentUser, get_current_user
 
 router = APIRouter(tags=["Timetables"])
 
@@ -17,7 +19,10 @@ MAX_SAVED_TIMETABLES = 5
 
 
 @router.get("", response_model=List[TimetableOut])
-def list_timetables(db: Session = Depends(get_db)):
+def list_timetables(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """List all saved timetables (without the full JSON payload)."""
     inst = get_or_create_institution(db)
     return (
@@ -29,16 +34,32 @@ def list_timetables(db: Session = Depends(get_db)):
 
 
 @router.get("/{timetable_id}", response_model=TimetableDetailOut)
-def get_timetable(timetable_id: str, db: Session = Depends(get_db)):
+def get_timetable(
+    timetable_id: str,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """Get a single saved timetable with full JSON data."""
-    tt = db.query(GeneratedTimetable).filter(GeneratedTimetable.id == timetable_id).first()
+    inst = get_or_create_institution(db)
+    tt = (
+        db.query(GeneratedTimetable)
+        .filter(
+            GeneratedTimetable.id == timetable_id,
+            GeneratedTimetable.institution_id == inst.id,
+        )
+        .first()
+    )
     if not tt:
         raise HTTPException(404, "Timetable not found")
     return tt
 
 
 @router.post("", response_model=TimetableOut)
-def save_timetable(data: TimetableSave, db: Session = Depends(get_db)):
+def save_timetable(
+    data: TimetableSave,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """
     Save a generated timetable. Enforces max 5 saved timetables per institution.
     """
@@ -70,8 +91,21 @@ def save_timetable(data: TimetableSave, db: Session = Depends(get_db)):
 
 
 @router.put("/{timetable_id}/name")
-def rename_timetable(timetable_id: str, name: str, db: Session = Depends(get_db)):
-    tt = db.query(GeneratedTimetable).filter(GeneratedTimetable.id == timetable_id).first()
+def rename_timetable(
+    timetable_id: str,
+    name: str,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    inst = get_or_create_institution(db)
+    tt = (
+        db.query(GeneratedTimetable)
+        .filter(
+            GeneratedTimetable.id == timetable_id,
+            GeneratedTimetable.institution_id == inst.id,
+        )
+        .first()
+    )
     if not tt:
         raise HTTPException(404, "Timetable not found")
     tt.name = name
@@ -80,8 +114,20 @@ def rename_timetable(timetable_id: str, name: str, db: Session = Depends(get_db)
 
 
 @router.delete("/{timetable_id}")
-def delete_timetable(timetable_id: str, db: Session = Depends(get_db)):
-    tt = db.query(GeneratedTimetable).filter(GeneratedTimetable.id == timetable_id).first()
+def delete_timetable(
+    timetable_id: str,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    inst = get_or_create_institution(db)
+    tt = (
+        db.query(GeneratedTimetable)
+        .filter(
+            GeneratedTimetable.id == timetable_id,
+            GeneratedTimetable.institution_id == inst.id,
+        )
+        .first()
+    )
     if not tt:
         raise HTTPException(404, "Timetable not found")
     db.delete(tt)

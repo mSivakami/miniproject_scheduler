@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 data.py — Bulk Upsert/Sync Endpoint for Frontend Zustand Stores
 =================================================================
@@ -13,6 +14,7 @@ from database import get_db, get_or_create_institution
 from models import (
     Institution, Teacher, Subject, Room, Classroom, LessonBlock, ConstraintSettings
 )
+from routers.auth import CurrentUser, get_current_user
 from schemas import (
     AllDataOut, AllDataSave,
     TeacherOut, SubjectOut, RoomOut, ClassroomOut, LessonBlockOut, ConstraintSettingsOut
@@ -61,6 +63,7 @@ def _resolve_relations(db: Session, data, lb: LessonBlock):
 @router.get("", response_model=AllDataOut)
 def get_all_data(
     db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
     mini_group_id: Optional[str] = Query(
         default=None,
         description="If provided, returns lesson blocks for this mini-group instead of main blocks.",
@@ -120,6 +123,7 @@ def get_all_data(
 def sync_all_data(
     data: AllDataSave,
     db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
     mini_group_id: Optional[str] = Query(
         default=None,
         description="Scope lesson block sync to a specific mini-group. "

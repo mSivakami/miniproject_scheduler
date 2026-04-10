@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 schemas.py — Pydantic request/response models
 ================================================
@@ -5,7 +6,7 @@ Includes bulk schemas for save-all operations.
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import datetime
 
 
@@ -36,7 +37,7 @@ class InstitutionOut(InstitutionBase):
 class TeacherBase(BaseModel):
     name: str
     short_name: Optional[str] = None
-    available_mask: int = -1
+    available_mask: Union[int, str] = -1
     max_per_day: int = 6
     max_per_week: int = 30
 
@@ -100,7 +101,7 @@ class SubjectBulkCreate(BaseModel):
 class RoomBase(BaseModel):
     name: str
     is_lab: bool = False
-    available_mask: int = -1
+    available_mask: Union[int, str] = -1
 
 class RoomCreate(RoomBase):
     id: Optional[str] = None

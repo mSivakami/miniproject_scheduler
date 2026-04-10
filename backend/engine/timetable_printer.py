@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 timetable_printer.py — Terminal Timetable Display
 ==================================================

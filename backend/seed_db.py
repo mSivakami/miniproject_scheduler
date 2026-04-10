@@ -1,8 +1,9 @@
+# -*- coding: utf-8 -*-
 """
 seed_db.py — Database Seeder for AutoScheduler
 ==============================================
 Populates the SQLite database with demo data from backend/engine/tt_cs.py.
-Creates a default admin user.
+Creates a default sign-in account.
 """
 
 import sys
@@ -14,7 +15,7 @@ sys.path.append(str(Path(__file__).parent))
 sys.path.append(str(Path(__file__).parent / "engine"))
 
 from database import SessionLocal, engine, Base, get_or_create_institution
-from models import AdminUser, Teacher, Subject, Room, Classroom, LessonBlock, Institution
+from models import Account, Teacher, Subject, Room, Classroom, LessonBlock, Institution
 from engine.tt_cs import create_comprehensive_test_case
 from routers.auth import _hash_password
 from services.bitmask_service import compute_break_mask, compute_working_mask
@@ -29,13 +30,13 @@ def seed():
     
     db = SessionLocal()
     try:
-        # 2. Create Admin User
-        print("  [*] Creating admin user (admin / admin123)...")
-        admin = AdminUser(
-            username="admin",
-            password_hash=_hash_password("admin123")
+        # 2. Create default account
+        print("  [*] Creating default account (cs@gmail.com / 12345678)...")
+        account = Account(
+            username="cs@gmail.com",
+            password_hash=_hash_password("12345678")
         )
-        db.add(admin)
+        db.add(account)
         db.flush()
 
         # 3. Get/Create Institution
@@ -131,7 +132,7 @@ def seed():
 
         db.commit()
         print("\n  [!] Seeding completed successfully.")
-        print("  [!] Use 'admin' / 'admin123' to log in.")
+        print("  [!] Use 'cs@gmail.com' / '12345678' to sign in.")
 
     except Exception as e:
         db.rollback()

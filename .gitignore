@@ -1,46 +1,46 @@
-# Python
+# ── NEVER commit these ──────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+secrets.json
+*.local
+
+# ── Databases ───────────────────────────────────────────────────────────────
+backend/app.db
+*.db
+*.sqlite
+*.db-journal
+*.db-shm
+*.db-wal
+
+# ── Dependencies & Python ───────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
 __pycache__/
+**/__pycache__/
 *.py[cod]
-*.pyo
+*$py.class
 *.pyd
 .Python
-*.egg
-*.egg-info/
-dist/
-build/
-.eggs/
-
-# Virtual environment
 .venv/
 venv/
 ENV/
 env/
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Vite / frontend build
+# ── Build output ────────────────────────────────────────────────────────────
 frontend/dist/
-frontend/.vite/
+frontend/build/
+dist/
+build/
+*.egg-info/
 
-# IDE
+# ── Editor / OS ─────────────────────────────────────────────────────────────
 .vscode/
+!.vscode/extensions.json
 .idea/
-*.swp
-*.swo
-
-# OS
 .DS_Store
 Thumbs.db
-
-# Vercel
-.vercel/
+*.log

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 ga_problem.py — GA Problem Representation & Bitmask Utilities
 ==============================================================

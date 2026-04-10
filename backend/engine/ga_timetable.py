@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 ga_timetable.py — Timetable Builder & View Generator
 =====================================================

@@ -1,0 +1,528 @@
+import { useEffect, useMemo, useState } from "react";
+import { Archive, RotateCcw, Trash2, Clock, Plus, FileDown, Loader2 } from "lucide-react";
+import { Button } from "../components/ui/button";
+import { Card, CardContent } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/dialog";
+import { PageWrapper } from "../components/PageWrapper";
+import { useStore, type TimetableEntry } from "../store/useStore";
+import { toast } from "sonner";
+import { api, type TimetableDetailOut, type TimetableOut } from "../api";
+
+interface LocalSavedTimetable {
+  id: string;
+  name: string;
+  savedAt: string;
+  fitness: number;
+  generationTime: number | null;
+  entriesCount: number;
+  timetableJson: string;
+}
+
+interface LegacyLocalSavedTimetable {
+  id: string;
+  name: string;
+  savedAt: string;
+  fitness: number;
+  generationTime: number | null;
+  entries: TimetableEntry[];
+  timetableId: string;
+}
+
+interface DisplaySavedTimetable {
+  id: string;
+  name: string;
+  savedAt: string;
+  fitness: number;
+  generationTime: number | null;
+  entriesCount: number | null;
+  source: "server" | "local";
+}
+
+interface RestorableTimetable {
+  timetable_id: string;
+  fitness: number;
+  entries: TimetableEntry[];
+  generation_time_seconds: number | null;
+}
+
+const MAX_SAVED = 5;
+const LOCAL_STORAGE_KEY = "autoscheduler_saved_timetables";
+
+function loadLocalSnapshots(): LocalSavedTimetable[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item): LocalSavedTimetable[] => {
+      if (
+        item &&
+        typeof item === "object" &&
+        typeof (item as LocalSavedTimetable).timetableJson === "string"
+      ) {
+        return [item as LocalSavedTimetable];
+      }
+
+      const legacy = item as LegacyLocalSavedTimetable;
+      if (
+        legacy &&
+        typeof legacy.id === "string" &&
+        typeof legacy.name === "string" &&
+        typeof legacy.savedAt === "string" &&
+        Array.isArray(legacy.entries) &&
+        typeof legacy.timetableId === "string"
+      ) {
+        return [{
+          id: legacy.id,
+          name: legacy.name,
+          savedAt: legacy.savedAt,
+          fitness: legacy.fitness,
+          generationTime: legacy.generationTime ?? null,
+          entriesCount: legacy.entries.length,
+          timetableJson: JSON.stringify({
+            timetable_id: legacy.timetableId,
+            fitness: legacy.fitness,
+            entries: legacy.entries,
+            generation_time_seconds: legacy.generationTime ?? null,
+          }),
+        }];
+      }
+
+      return [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function persistLocalSnapshots(items: LocalSavedTimetable[]) {
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
+}
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) +
+    " - " + d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function downloadJSON(filename: string, value: unknown) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function parseRestorableTimetable(rawJson: string): RestorableTimetable {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch {
+    throw new Error("Saved timetable data is corrupted and could not be parsed.");
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Saved timetable data is malformed.");
+  }
+
+  const timetable = parsed as Partial<RestorableTimetable>;
+  if (
+    typeof timetable.timetable_id !== "string" ||
+    typeof timetable.fitness !== "number" ||
+    !Array.isArray(timetable.entries)
+  ) {
+    throw new Error("Saved timetable data is missing required fields.");
+  }
+
+  return {
+    timetable_id: timetable.timetable_id,
+    fitness: timetable.fitness,
+    entries: timetable.entries,
+    generation_time_seconds:
+      typeof timetable.generation_time_seconds === "number" ? timetable.generation_time_seconds : null,
+  };
+}
+
+function useLocalSavedTimetables() {
+  const [saved, setSaved] = useState<LocalSavedTimetable[]>(() => loadLocalSnapshots());
+
+  const persist = (list: LocalSavedTimetable[]) => {
+    setSaved(list);
+    persistLocalSnapshots(list);
+  };
+
+  const save = (snapshot: Omit<LocalSavedTimetable, "id" | "savedAt">) => {
+    const updated = [
+      { ...snapshot, id: crypto.randomUUID(), savedAt: new Date().toISOString() },
+      ...saved,
+    ].slice(0, MAX_SAVED);
+    persist(updated);
+  };
+
+  const remove = (id: string) => persist(saved.filter(item => item.id !== id));
+  const clear = () => persist([]);
+
+  return { saved, save, remove, clear };
+}
+
+export function SavedTimetables() {
+  const { generation, restoreGeneration, backendAvailable } = useStore();
+  const { saved: localSaved, save: saveLocal, remove: removeLocal, clear: clearLocal } = useLocalSavedTimetables();
+
+  const [serverSaved, setServerSaved] = useState<TimetableOut[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [restoreId, setRestoreId] = useState<string | null>(null);
+  const [clearOpen, setClearOpen] = useState(false);
+
+  const usingServer = backendAvailable;
+  const currentTimetable = generation?.timetable;
+
+  const savedItems = useMemo<DisplaySavedTimetable[]>(() => {
+    if (usingServer) {
+      return serverSaved.map(tt => ({
+        id: tt.id,
+        name: tt.name,
+        savedAt: tt.created_at,
+        fitness: tt.fitness_score ?? 0,
+        generationTime: null,
+        entriesCount: null,
+        source: "server",
+      }));
+    }
+
+    return localSaved.map(tt => ({
+      id: tt.id,
+      name: tt.name,
+      savedAt: tt.savedAt,
+      fitness: tt.fitness,
+      generationTime: tt.generationTime,
+      entriesCount: tt.entriesCount,
+      source: "local",
+    }));
+  }, [localSaved, serverSaved, usingServer]);
+
+  useEffect(() => {
+    if (!usingServer) return;
+
+    let cancelled = false;
+    setIsLoading(true);
+    api.listTimetables()
+      .then(items => {
+        if (!cancelled) setServerSaved(items);
+      })
+      .catch(err => {
+        if (!cancelled) {
+          console.warn("[saved-timetables] failed to load:", err);
+          toast.error("Could not load saved timetables from the server.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [usingServer]);
+
+  const refreshServerSaved = async () => {
+    if (!usingServer) return;
+    const items = await api.listTimetables();
+    setServerSaved(items);
+  };
+
+  const loadServerDetail = async (id: string): Promise<TimetableDetailOut> => {
+    const detail = await api.getTimetable(id);
+    if (!detail.timetable_json) {
+      throw new Error("Saved timetable has no timetable payload.");
+    }
+    return detail;
+  };
+
+  const handleSaveSnapshot = async () => {
+    if (!currentTimetable) return;
+
+    setIsSaving(true);
+    try {
+      if (usingServer) {
+        await api.saveTimetable({
+          name: `Snapshot ${savedItems.length + 1}`,
+          timetable_json: JSON.stringify(currentTimetable),
+          fitness_score: currentTimetable.fitness,
+          hard_violations: generation.hardViolations ?? 0,
+          soft_violations: generation.softViolations ?? 0,
+        });
+        await refreshServerSaved();
+      } else {
+        saveLocal({
+          name: `Snapshot ${savedItems.length + 1}`,
+          fitness: currentTimetable.fitness,
+          generationTime: currentTimetable.generation_time_seconds,
+          entriesCount: currentTimetable.entries.length,
+          timetableJson: JSON.stringify(currentTimetable),
+        });
+      }
+      toast.success("Snapshot saved.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save snapshot.";
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRestore = async (item: DisplaySavedTimetable) => {
+    try {
+      const timetable =
+        item.source === "server"
+          ? parseRestorableTimetable((await loadServerDetail(item.id)).timetable_json)
+          : parseRestorableTimetable(localSaved.find(saved => saved.id === item.id)?.timetableJson ?? "");
+
+      restoreGeneration(timetable);
+      toast.success(`"${item.name}" loaded to timetable view.`);
+      setRestoreId(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load saved timetable.";
+      toast.error(message);
+    }
+  };
+
+  const handleExport = async (item: DisplaySavedTimetable) => {
+    try {
+      const payload =
+        item.source === "server"
+          ? JSON.parse((await loadServerDetail(item.id)).timetable_json)
+          : JSON.parse(localSaved.find(saved => saved.id === item.id)?.timetableJson ?? "");
+
+      downloadJSON(`timetable_${item.name.replace(/\s+/g, "_")}.json`, payload);
+      toast.success("Timetable exported.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to export timetable.";
+      toast.error(message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      if (usingServer) {
+        await api.deleteTimetable(id);
+        await refreshServerSaved();
+      } else {
+        removeLocal(id);
+      }
+      toast.success("Deleted.");
+      setDeleteId(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete saved timetable.";
+      toast.error(message);
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      if (usingServer) {
+        await Promise.all(savedItems.map(item => api.deleteTimetable(item.id)));
+        await refreshServerSaved();
+      } else {
+        clearLocal();
+      }
+      toast.success("All cleared.");
+      setClearOpen(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to clear saved timetables.";
+      toast.error(message);
+    }
+  };
+
+  const restoreItem = savedItems.find(item => item.id === restoreId) ?? null;
+
+  return (
+    <PageWrapper>
+      <div className="flex-1 flex flex-col p-8 gap-6 max-w-5xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2.5 mb-1">
+              <Archive className="w-5 h-5 text-muted-foreground" />
+              <h1 className="text-xl font-semibold">Saved Timetables</h1>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {usingServer
+                ? "Saved timetable versions stored on the server."
+                : `Store up to ${MAX_SAVED} local timetable snapshots in this browser.`}
+            </p>
+          </div>
+          {savedItems.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setClearOpen(true)}
+              className="text-destructive hover:text-destructive gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Clear all
+            </Button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1.5">
+            {Array.from({ length: MAX_SAVED }).map((_, i) => (
+              <div
+                key={i}
+                className={`w-8 h-1.5 rounded-full transition-colors ${
+                  i < savedItems.length ? "bg-foreground" : "bg-border"
+                }`}
+              />
+            ))}
+          </div>
+          <span className="text-xs text-muted-foreground">{savedItems.length}/{MAX_SAVED} slots used</span>
+          {usingServer && isLoading && (
+            <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Loading server snapshots
+            </span>
+          )}
+        </div>
+
+        {currentTimetable && (
+          <Card className="border-dashed">
+            <CardContent className="py-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Current timetable ready to save</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Fitness: {currentTimetable.fitness?.toFixed(4)} - {currentTimetable.entries?.length ?? 0} entries
+                </p>
+              </div>
+              <Button
+                size="sm"
+                disabled={savedItems.length >= MAX_SAVED || isSaving}
+                onClick={handleSaveSnapshot}
+                className="gap-1.5"
+              >
+                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                Save snapshot
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {savedItems.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 py-20 text-center">
+            <div className="p-4 rounded-full bg-muted">
+              <Archive className="w-6 h-6 text-muted-foreground" />
+            </div>
+            <p className="text-sm font-medium">No saved timetables yet</p>
+            <p className="text-xs text-muted-foreground max-w-xs">
+              Generate a timetable on the Timetable page, then save a snapshot here.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {savedItems.map((tt, index) => (
+              <Card key={tt.id} className="hover:shadow-sm transition-shadow">
+                <CardContent className="py-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center shrink-0 text-xs font-medium text-muted-foreground">
+                      {index + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{tt.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <Clock className="w-3 h-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">{formatDate(tt.savedAt)}</span>
+                        <Badge variant="secondary" className="text-xs py-0">
+                          fitness {tt.fitness?.toFixed(3)}
+                        </Badge>
+                        {tt.entriesCount !== null && (
+                          <span className="text-xs text-muted-foreground">{tt.entriesCount} entries</span>
+                        )}
+                        {tt.generationTime !== null && (
+                          <span className="text-xs text-muted-foreground">{tt.generationTime.toFixed(1)}s</span>
+                        )}
+                        <Badge variant="outline" className="text-xs py-0 capitalize">
+                          {tt.source}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs"
+                      onClick={() => handleExport(tt)}
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      Export
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs"
+                      onClick={() => setRestoreId(tt.id)}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Load
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setDeleteId(tt.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete saved timetable?</DialogTitle>
+            <DialogDescription>This snapshot will be permanently removed.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => handleDelete(deleteId!)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!restoreId} onOpenChange={() => setRestoreId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Load this timetable?</DialogTitle>
+            <DialogDescription>
+              This will restore the saved snapshot into the timetable view. Any current unsaved timetable will be replaced.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRestoreId(null)}>Cancel</Button>
+            <Button onClick={() => restoreItem && handleRestore(restoreItem)}>Load</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={clearOpen} onOpenChange={setClearOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear all saved timetables?</DialogTitle>
+            <DialogDescription>All {savedItems.length} snapshots will be permanently removed.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClearOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleClearAll}>Clear all</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageWrapper>
+  );
+}

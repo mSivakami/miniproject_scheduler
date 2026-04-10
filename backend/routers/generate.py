@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 generate.py — Synchronous GA generation endpoint
 ==================================================
@@ -9,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db, get_or_create_institution
-from models import Institution, Teacher, Subject, Room, Classroom, LessonBlock
+from models import Institution, Teacher, Subject, Room, Classroom, LessonBlock, ConstraintSettings
 from schemas import GenerateRequest, GenerateResponse
 from services.ga_bridge import run_ga_from_db
 
@@ -42,6 +43,10 @@ def generate_main(req: GenerateRequest = GenerateRequest(), db: Session = Depend
         .filter(LessonBlock.mini_group_id == None)
         .all()
     )
+    constraint_settings = db.query(ConstraintSettings).filter(
+        ConstraintSettings.institution_id == inst.id,
+        ConstraintSettings.mini_group_id == None,
+    ).first()
 
     if not lesson_blocks:
         raise HTTPException(400, "No lesson blocks configured. Add lesson blocks before generating.")
@@ -60,6 +65,7 @@ def generate_main(req: GenerateRequest = GenerateRequest(), db: Session = Depend
             rooms=rooms,
             classrooms=classrooms,
             lesson_blocks=lesson_blocks,
+            constraint_settings=constraint_settings,
             max_generations=req.max_generations,
             population_size=req.population_size,
             time_limit_seconds=req.time_limit_seconds,
@@ -96,6 +102,10 @@ def generate_mini(group_id: str, req: GenerateRequest = GenerateRequest(), db: S
         .filter(LessonBlock.mini_group_id == group.id)
         .all()
     )
+    constraint_settings = db.query(ConstraintSettings).filter(
+        ConstraintSettings.institution_id == group.institution_id,
+        ConstraintSettings.mini_group_id == group.id,
+    ).first()
 
     if not lesson_blocks:
         raise HTTPException(400, "No lesson blocks configured for this mini-group.")
@@ -109,6 +119,7 @@ def generate_mini(group_id: str, req: GenerateRequest = GenerateRequest(), db: S
             rooms=rooms,
             classrooms=classrooms,
             lesson_blocks=lesson_blocks,
+            constraint_settings=constraint_settings,
             max_generations=req.max_generations,
             population_size=req.population_size,
             time_limit_seconds=req.time_limit_seconds,
@@ -148,6 +159,11 @@ def preflight_check_main(db: Session = Depends(get_db)):
     if not lesson_blocks:
         return {"feasible": False, "errors": ["No lesson blocks configured"], "warnings": []}
 
+    constraint_settings = db.query(ConstraintSettings).filter(
+        ConstraintSettings.institution_id == inst.id,
+        ConstraintSettings.mini_group_id == None,
+    ).first()
+
     from services.ga_bridge import _db_to_ga_structures
     from engine.ga_problem import build_problem_data
     from engine.ga_preflight import preflight_check as ga_preflight
@@ -156,7 +172,7 @@ def preflight_check_main(db: Session = Depends(get_db)):
      ga_blocks, inst_settings) = _db_to_ga_structures(
         inst, teachers,
         db.query(Subject).filter(Subject.institution_id == inst.id).all(),
-        rooms, classrooms, lesson_blocks
+        rooms, classrooms, lesson_blocks, constraint_settings=constraint_settings
     )
 
     data = build_problem_data(

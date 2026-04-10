@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 models.py — SQLAlchemy ORM Models
 ===================================
@@ -23,9 +24,29 @@ def gen_uuid():
 
 # ─── Auth ────────────────────────────────────────────────────────────────────
 
+class Account(Base):
+    """Primary sign-in account model used by the app."""
+    __tablename__ = "accounts"
+
+    id            = Column(String, primary_key=True, default=gen_uuid)
+    username      = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    created_at    = Column(DateTime, server_default=func.now())
+
+
 class AdminUser(Base):
-    """Single admin account for the local AutoScheduler instance."""
+    """Legacy table kept for compatibility with older local databases."""
     __tablename__ = "admin_users"
+
+    id            = Column(String, primary_key=True, default=gen_uuid)
+    username      = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    created_at    = Column(DateTime, server_default=func.now())
+
+
+class UserAccount(Base):
+    """Legacy table kept for compatibility with older local databases."""
+    __tablename__ = "user_accounts"
 
     id            = Column(String, primary_key=True, default=gen_uuid)
     username      = Column(String, unique=True, nullable=False)

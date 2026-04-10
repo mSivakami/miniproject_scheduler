@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 bitmask_service.py — Bitmask utilities for schedule grid
 """

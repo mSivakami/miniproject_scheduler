@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 ga_bridge.py — Bridge between FastAPI/DB and the GA Engine
 ============================================================
@@ -6,6 +7,8 @@ runs the GA, and returns the result.
 
 This file imports from the project root (where ga_engine.py etc. live).
 """
+
+import json
 
 from engine.structures import (
     Teacher as GATeacher,
@@ -19,15 +22,109 @@ from engine.ga_fitness import ConstraintSettings
 from engine.ga_engine import GAEngine, GAConfig, GAResult
 from engine.ga_timetable import build_timetable, Timetable
 
-from services.bitmask_service import compute_break_mask, compute_working_mask
-
 # Type hints for ORM models (avoid circular import)
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
-    from models import Institution, Teacher, Classroom, Subject, Room, LessonBlock
+    from models import Institution, Teacher, Classroom, Subject, Room, LessonBlock, ConstraintSettings as ORMConstraintSettings
 
 
-def _db_to_ga_structures(institution, teachers, subjects, rooms, classrooms, lesson_blocks):
+UI_CONSTRAINT_DEFAULTS = {
+    "no_consecutive_periods": {"ui_weight": 70, "backend_weight": 0.5},
+    "difficult_not_last": {"ui_weight": 60, "backend_weight": 0.8},
+    "avoid_morning_lab": {"ui_weight": 50, "backend_weight": 0.5},
+    "no_subject_twice_same_day": {"ui_weight": 80, "backend_weight": 0.7},
+}
+
+
+def _parse_constraint_payload(constraint_settings: "ORMConstraintSettings | None") -> dict[str, Any]:
+    if not constraint_settings or not constraint_settings.settings_json:
+        return {}
+
+    try:
+        payload = json.loads(constraint_settings.settings_json)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+
+    if isinstance(payload, list):
+        return {"constraints": payload}
+    if isinstance(payload, dict):
+        return payload
+    return {}
+
+
+def _normalize_break_slots(raw_breaks: Any, days: int, periods: int) -> list[tuple[int, int]]:
+    slots: set[tuple[int, int]] = set()
+    if not isinstance(raw_breaks, list):
+        return []
+
+    for item in raw_breaks:
+        if not isinstance(item, dict):
+            continue
+        day = item.get("day")
+        period = item.get("period")
+        if isinstance(day, int) and isinstance(period, int) and 0 <= day < days and 0 <= period < periods:
+            slots.add((day, period))
+
+    return sorted(slots)
+
+
+def _scaled_weight(constraint_id: str, raw_weight: Any) -> float:
+    defaults = UI_CONSTRAINT_DEFAULTS.get(constraint_id)
+    if defaults is None:
+        return 1.0
+
+    try:
+        weight = float(raw_weight)
+    except (TypeError, ValueError):
+        weight = float(defaults["ui_weight"])
+
+    if defaults["ui_weight"] <= 0:
+        return float(defaults["backend_weight"])
+
+    scaled = (weight / defaults["ui_weight"]) * defaults["backend_weight"]
+    return max(0.0, min(3.0, scaled))
+
+
+def _build_constraint_settings(constraint_settings: "ORMConstraintSettings | None") -> ConstraintSettings:
+    if constraint_settings and not constraint_settings.is_active:
+        return ConstraintSettings.all_hard_only()
+
+    cs = ConstraintSettings()
+    payload = _parse_constraint_payload(constraint_settings)
+    raw_constraints = payload.get("constraints")
+    if not isinstance(raw_constraints, list):
+        return cs
+
+    by_id = {}
+    for item in raw_constraints:
+        if isinstance(item, dict) and isinstance(item.get("id"), str):
+            by_id[item["id"]] = item
+
+    no_consecutive = by_id.get("no_consecutive_periods")
+    if no_consecutive:
+        cs.S5 = bool(no_consecutive.get("enabled", True))
+        cs.S5_weight = _scaled_weight("no_consecutive_periods", no_consecutive.get("weight"))
+        cs.max_consecutive_periods = 2
+
+    difficult_not_last = by_id.get("difficult_not_last")
+    if difficult_not_last:
+        cs.S2 = bool(difficult_not_last.get("enabled", True))
+        cs.S2_weight = _scaled_weight("difficult_not_last", difficult_not_last.get("weight"))
+
+    avoid_morning_lab = by_id.get("avoid_morning_lab")
+    if avoid_morning_lab:
+        cs.avoid_morning_lab = bool(avoid_morning_lab.get("enabled", False))
+        cs.avoid_morning_lab_weight = _scaled_weight("avoid_morning_lab", avoid_morning_lab.get("weight"))
+
+    no_subject_twice = by_id.get("no_subject_twice_same_day")
+    if no_subject_twice:
+        cs.S3 = bool(no_subject_twice.get("enabled", True))
+        cs.S3_weight = _scaled_weight("no_subject_twice_same_day", no_subject_twice.get("weight"))
+
+    return cs
+
+
+def _db_to_ga_structures(institution, teachers, subjects, rooms, classrooms, lesson_blocks, constraint_settings=None):
     """
     Convert DB ORM objects into the GA engine's domain structures.
 
@@ -108,8 +205,13 @@ def _db_to_ga_structures(institution, teachers, subjects, rooms, classrooms, les
     periods = institution.periods_per_day
     break_after = institution.break_after_period
 
-    # Build break slots list (0-indexed): break_after period on each day
-    break_slots = [(d, break_after) for d in range(days)]
+    payload = _parse_constraint_payload(constraint_settings)
+
+    # Use custom break slots from saved settings when present. An empty array means "no breaks".
+    if "breaks" in payload:
+        break_slots = _normalize_break_slots(payload.get("breaks"), days, periods)
+    else:
+        break_slots = [(d, break_after) for d in range(days) if 0 <= break_after < periods]
 
     inst_settings = InstitutionSettings(
         days=days,
@@ -121,6 +223,7 @@ def _db_to_ga_structures(institution, teachers, subjects, rooms, classrooms, les
 
 
 def run_ga_from_db(institution, teachers, subjects, rooms, classrooms, lesson_blocks,
+                   constraint_settings=None,
                    max_generations=2000, population_size=300,
                    time_limit_seconds=120, seed=None, fast_mode=False) -> dict:
     """
@@ -132,7 +235,7 @@ def run_ga_from_db(institution, teachers, subjects, rooms, classrooms, lesson_bl
     """
     (ga_teachers, ga_subjects, ga_rooms, ga_classes,
      ga_blocks, inst_settings) = _db_to_ga_structures(
-        institution, teachers, subjects, rooms, classrooms, lesson_blocks
+        institution, teachers, subjects, rooms, classrooms, lesson_blocks, constraint_settings=constraint_settings
     )
 
     # Build ProblemData
@@ -157,8 +260,7 @@ def run_ga_from_db(institution, teachers, subjects, rooms, classrooms, lesson_bl
         config.fast_mode_generations = 50
         config.max_generations = min(max_generations, 500)
 
-    # Constraints — use defaults
-    constraints = ConstraintSettings()
+    constraints = _build_constraint_settings(constraint_settings)
 
     # Run!
     engine = GAEngine(data=data, config=config, constraints=constraints)
@@ -205,7 +307,12 @@ def _expand_timetable(timetable: Timetable, data, inst_settings) -> dict:
                 if cell:
                     day_row.append({
                         "block_id": cell.block_id,
+                        "subject_id": cell.subject_id,
                         "subject_name": cell.subject_name,
+                        "teacher_ids": cell.teacher_ids,
+                        "class_ids": cell.class_ids,
+                        "classroom_ids": cell.class_ids,
+                        "room_ids": cell.room_ids,
                         "teacher_names": cell.teacher_names,
                         "room_name": ", ".join(cell.room_ids) if cell.room_ids else "—",
                         "is_lab": cell.is_lab,
@@ -229,7 +336,12 @@ def _expand_timetable(timetable: Timetable, data, inst_settings) -> dict:
                 if cell:
                     day_row.append({
                         "block_id": cell.block_id,
+                        "subject_id": cell.subject_id,
                         "subject_name": cell.subject_name,
+                        "teacher_ids": cell.teacher_ids,
+                        "class_ids": cell.class_ids,
+                        "classroom_ids": cell.class_ids,
+                        "room_ids": cell.room_ids,
                         "class_names": [data.orig_classes[cid].name if cid in data.orig_classes else cid for cid in cell.class_ids],
                         "room_name": ", ".join(cell.room_ids) if cell.room_ids else "—",
                         "is_lab": cell.is_lab,
