@@ -24,6 +24,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../components/ui/select";
 
+
 const DRAG_TYPE = "TIMETABLE_ENTRY";
 
 interface DragPayload {
@@ -378,20 +379,270 @@ function TimetableView() {
     toast.success("Timetable cleared.");
   };
 
-  const handleExportJSON = () => {
+  const timetablePrintRef = useRef<HTMLDivElement>(null);
+
+  const SUBJECT_PALETTE = [
+    "#DBEAFE","#DCFCE7","#FEF9C3","#FFE4C4","#EDE9FE",
+    "#CCFBF1","#FCE7F3","#E0F2FE","#E0E7FF","#FEE2E2",
+    "#D1FAE5","#FEF3C7","#DDD6FE","#ECFDF5","#FFF1F2",
+    "#E0F2FE","#FEFCE8","#F3E8FF","#ECFDF5","#FFF7ED",
+  ];
+
+  const getSubjectColorMap = (): Map<string, string> => {
+    const map = new Map<string, string>();
+    let i = 0;
+    for (const entry of localEntries) {
+      if (!map.has(entry.subject_id)) {
+        map.set(entry.subject_id, SUBJECT_PALETTE[i % SUBJECT_PALETTE.length]);
+        i++;
+      }
+    }
+    return map;
+  };
+
+  const buildEntityTable = (
+    entity: Teacher | Class | Classroom,
+    mode: "teacher" | "class" | "classroom",
+    colorMap: Map<string, string>,
+    accent: string,
+  ): string => {
+    const periodNums = Array.from({ length: numPeriods }, (_, i) => i);
+    const breakSet = new Set((settings.breaks ?? []).map((b) => `${b.day}_${b.period}`));
+
+    const startMap = new Map<string, TimetableEntry>();
+    const spanned  = new Set<string>();
+
+    for (const entry of localEntries) {
+      const belongs =
+        mode === "teacher" ? entry.teacher_ids.includes(entity.id)
+        : mode === "class"  ? entry.class_ids.includes(entity.id)
+        :                     entry.room_ids.includes(entity.id);
+      if (!belongs) continue;
+      startMap.set(`${entry.day}_${entry.start_period}`, entry);
+      for (let offset = 1; offset < entry.duration; offset++)
+        spanned.add(`${entry.day}_${entry.start_period + offset}`);
+    }
+
+    const headerCells = periodNums.map(p =>
+      `<th style="background:${accent};color:#fff;padding:9px 4px;font-size:9px;font-weight:700;border:1px solid rgba(255,255,255,0.2);">P${p+1}</th>`
+    ).join("");
+
+    const rows = Array.from({ length: numDays }, (_, dayIndex) => {
+      const skips = new Set<number>();
+      let cells = `<td style="background:#f1f5f9;font-size:9px;font-weight:700;color:#475569;text-align:center;padding:6px 4px;border:1px solid #e2e8f0;width:54px;">${dayNames[dayIndex]}</td>`;
+
+      for (const periodIndex of periodNums) {
+        if (skips.has(periodIndex)) continue;
+        const key = `${dayIndex}_${periodIndex}`;
+        if (spanned.has(key)) { cells += `<td style="display:none"></td>`; continue; }
+
+        if (breakSet.has(key)) {
+          cells += `<td style="background:#fffbeb;border:1px solid #e2e8f0;text-align:center;vertical-align:middle;padding:4px;">
+            <span style="color:#92400e;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;">🔔 Break</span>
+          </td>`;
+          continue;
+        }
+
+        const entry = startMap.get(key);
+        if (!entry) { cells += `<td style="border:1px solid #e2e8f0;background:#fff;"></td>`; continue; }
+
+        const span    = Math.min(entry.duration, numPeriods - periodIndex);
+        for (let s = 1; s < span; s++) skips.add(periodIndex + s);
+
+        const bg      = colorMap.get(entry.subject_id) ?? "#f1f5f9";
+        const border  = accent;
+
+        let secondary = "";
+        let tertiary  = "";
+        if (mode === "teacher") {
+          secondary = entry.class_ids.map(id => classes.find(c => c.id === id)?.name).filter(Boolean).join(" / ");
+          tertiary  = entry.room_ids.map(id => classrooms.find(r => r.id === id)?.short).filter(Boolean).join(", ");
+        } else if (mode === "class") {
+          secondary = entry.teacher_ids.map(id => teachers.find(t => t.id === id)?.name.split(" ").pop()).filter(Boolean).join(" / ");
+          tertiary  = entry.room_ids.map(id => classrooms.find(r => r.id === id)?.short).filter(Boolean).join(", ");
+        } else {
+          secondary = entry.class_ids.map(id => classes.find(c => c.id === id)?.name).filter(Boolean).join(" / ");
+          tertiary  = entry.teacher_ids.map(id => teachers.find(t => t.id === id)?.name.split(" ").pop()).filter(Boolean).join(" / ");
+        }
+
+        cells += `
+          <td colspan="${span}" style="background:${bg};border:1px solid #e2e8f0;border-left:3px solid ${border};padding:5px 6px;vertical-align:middle;">
+            <div style="font-size:9px;font-weight:800;color:#1e293b;line-height:1.3;">${entry.subject_name}</div>
+            ${secondary ? `<div style="font-size:8px;color:#475569;margin-top:1px;">${secondary}</div>` : ""}
+            ${tertiary  ? `<div style="font-size:7.5px;color:#64748b;">${tertiary}</div>` : ""}
+            ${entry.duration > 1 ? `<div style="font-size:7px;color:#7c3aed;font-weight:700;margin-top:2px;">[${entry.duration} periods]</div>` : ""}
+          </td>`;
+      }
+      return `<tr>${cells}</tr>`;
+    }).join("");
+
+    return `
+      <div class="entity-block">
+        <div class="entity-header" style="border-left:4px solid ${accent};">
+          <span class="entity-name">${entity.name}</span>
+          <span class="entity-badge">${entity.short}</span>
+        </div>
+        <table>
+          <colgroup><col style="width:54px"/>${periodNums.map(()=>`<col/>`).join("")}</colgroup>
+          <thead><tr>
+            <th style="background:${accent};color:#fff;padding:9px 4px;font-size:9px;font-weight:700;border:1px solid rgba(255,255,255,0.2);">Day</th>
+            ${headerCells}
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  };
+
+  const handleExportPDF = () => {
     if (!generation.timetable) return;
 
-    const blob = new Blob(
-      [JSON.stringify({ ...generation.timetable, entries: localEntries }, null, 2)],
-      { type: "application/json" },
-    );
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `timetable_${generation.timetable.timetable_id.slice(0, 8)}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    toast.success("Timetable exported as JSON.");
+    const colorMap = getSubjectColorMap();
+    const exportDate = new Date().toLocaleDateString("en-IN", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+
+    const sections = [
+      { title: "Class Timetables",   mode: "class"      as const, entities: classes,     accent: "#2563eb" },
+      { title: "Teacher Timetables", mode: "teacher"    as const, entities: teachers,    accent: "#16a34a" },
+      { title: "Room Timetables",    mode: "classroom"  as const, entities: classrooms,  accent: "#7c3aed" },
+    ];
+
+    const sectionsHTML = sections.map(({ title, mode, entities: ents, accent }, si) => `
+      <div class="section" style="${si > 0 ? "page-break-before:always;" : ""}">
+        <div class="section-title" style="border-left:5px solid ${accent};color:${accent};">
+          ${title}
+        </div>
+        ${ents.map(e => buildEntityTable(e, mode, colorMap, accent)).join("")}
+      </div>
+    `).join("");
+
+    // Cover stats
+    const totalPeriods = localEntries.reduce((s, e) => s + e.duration, 0);
+    const stats = [
+      { label: "Classes",      value: classes.length },
+      { label: "Teachers",     value: teachers.length },
+      { label: "Rooms",        value: classrooms.length },
+      { label: "Total Periods",value: totalPeriods },
+    ];
+
+    const statsHTML = stats.map(s => `
+      <div class="stat-card">
+        <div class="stat-value">${s.value}</div>
+        <div class="stat-label">${s.label}</div>
+      </div>`).join("");
+
+    const printWindow = window.open("", "_blank", "width=1280,height=900");
+    if (!printWindow) { toast.error("Popup blocked. Please allow popups and try again."); return; }
+
+    printWindow.document.write(`
+      <!DOCTYPE html><html><head>
+      <title>Timetable Report</title>
+      <style>
+        *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:'Segoe UI', system-ui, sans-serif; background:#fff; color:#1e293b; }
+
+        /* ── Section ── */
+        .section { margin-bottom: 32px; }
+        .section-title {
+          font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+          padding:8px 14px; background:#f8fafc; border-left:5px solid currentColor;
+          margin-bottom:16px; border-radius:0 4px 4px 0;
+        }
+
+        /* ── Entity block ── */
+        .entity-block { margin-bottom:20px; page-break-inside:avoid; }
+        .entity-header {
+          display:flex; align-items:center; gap:10px;
+          padding:6px 12px; background:#f8fafc;
+          border:1px solid #e2e8f0; border-bottom:none;
+          border-radius:6px 6px 0 0;
+        }
+        .entity-name  { font-size:11px; font-weight:800; color:#0f172a; }
+        .entity-badge { font-size:8.5px; color:#64748b; background:#e2e8f0;
+                        padding:1px 7px; border-radius:9999px; font-weight:600; }
+
+        /* ── Table core — fixed layout, equal columns ── */
+        table {
+          width:100%; border-collapse:collapse; table-layout:fixed;
+          border:1px solid #e2e8f0; border-top:none;
+          border-radius:0 0 6px 6px; overflow:hidden;
+        }
+        colgroup col.day-col { width:52px; }
+
+        /* Every cell same fixed height, no content stretching rows */
+        th, td {
+          border:1px solid #e2e8f0;
+          height:52px;
+          overflow:hidden;
+          vertical-align:middle;
+          text-align:center;
+          padding:0;
+        }
+
+        /* Header row */
+        thead th {
+          height:30px;
+          font-size:8.5px; font-weight:700;
+          color:#fff; letter-spacing:.03em;
+          padding:0 2px;
+        }
+        thead th.day-col { background:#334155 !important; }
+
+        /* Day label column */
+        tbody td.day-cell {
+          background:#f1f5f9; font-size:8.5px; font-weight:700;
+          color:#475569; text-align:center; padding:0 2px;
+        }
+
+        /* Break cell */
+        tbody td.break-cell {
+          background:#fffbeb !important;
+          font-size:8px; font-weight:800; color:#92400e;
+          text-transform:uppercase; letter-spacing:.06em;
+        }
+
+        /* Empty cell */
+        tbody td.empty-cell { background:#fff; }
+
+        /* Subject cell wrapper — fills the fixed-height td */
+        .cell-inner {
+          display:flex; flex-direction:column; justify-content:center;
+          align-items:flex-start; gap:1px;
+          height:52px; padding:4px 6px;
+          border-left:3px solid transparent;
+          overflow:hidden;
+        }
+        .cell-subject { font-size:9px; font-weight:800; color:#1e293b;
+                        line-height:1.25; white-space:nowrap; overflow:hidden;
+                        text-overflow:ellipsis; max-width:100%; }
+        .cell-secondary { font-size:7.5px; color:#475569; white-space:nowrap;
+                          overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+        .cell-tertiary  { font-size:7px; color:#64748b; white-space:nowrap;
+                          overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+        .cell-duration  { font-size:7px; font-weight:700; color:#7c3aed; margin-top:1px; }
+
+        /* Alternating row tint — only on empty/day cells, not subject cells */
+        tbody tr:nth-child(even) td.empty-cell { background:#f8fafc; }
+        tbody tr:nth-child(even) td.day-cell   { background:#eef2f7; }
+
+        /* ── Print ── */
+        @media print {
+          body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+          @page { size:A4 landscape; margin:10mm 12mm; }
+          .section { page-break-before:always; }
+          .section:first-child { page-break-before:avoid; }
+          .entity-block { page-break-inside:avoid; }
+        }
+      </style>
+      </head><body>
+
+      ${sectionsHTML}
+
+      </body></html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 900);
+    toast.success("Print dialog opened — choose 'Save as PDF'.");
   };
 
   const isLockedEntry = (entry: TimetableEntry) => lessons.find(l => l.id === entry.lesson_id)?.is_locked ?? false;
@@ -520,8 +771,8 @@ function TimetableView() {
           <div className="flex gap-2">
             {generation.timetable && (
               <>
-                <Button onClick={handleExportJSON} variant="outline" size="sm" className="gap-1.5">
-                  <FileDown className="w-4 h-4" /> Export JSON
+                <Button onClick={handleExportPDF} variant="outline" size="sm" className="gap-1.5">
+                  <FileDown className="w-4 h-4" /> Export PDF
                 </Button>
                 <Button onClick={handleReset} variant="outline" size="sm" className="gap-1.5">
                   <RotateCcw className="w-4 h-4" /> Reset
