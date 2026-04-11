@@ -179,6 +179,7 @@ class MiniGroupOut(MiniGroupBase):
 
 class ConstraintSettingsCreate(BaseModel):
     settings_json: str = "{}"
+    constraint_mask: int = 0
     is_active: bool = True
 
 class ConstraintSettingsOut(ConstraintSettingsCreate):
@@ -219,6 +220,7 @@ class GenerateRequest(BaseModel):
     time_limit_seconds: int = 120
     seed: Optional[int] = None
     fast_mode: bool = False
+    constraint_mask: Optional[int] = None  # overrides DB value if provided
 
 class ViolationDetail(BaseModel):
     type: str

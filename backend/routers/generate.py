@@ -71,6 +71,7 @@ def generate_main(req: GenerateRequest = GenerateRequest(), db: Session = Depend
             time_limit_seconds=req.time_limit_seconds,
             seed=req.seed,
             fast_mode=req.fast_mode,
+            constraint_mask=req.constraint_mask,
         )
     except Exception as e:
         raise HTTPException(500, f"GA engine error: {str(e)}")
@@ -125,6 +126,7 @@ def generate_mini(group_id: str, req: GenerateRequest = GenerateRequest(), db: S
             time_limit_seconds=req.time_limit_seconds,
             seed=req.seed,
             fast_mode=req.fast_mode,
+            constraint_mask=req.constraint_mask,
         )
     except Exception as e:
         raise HTTPException(500, f"GA engine error: {str(e)}")

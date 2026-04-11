@@ -237,6 +237,7 @@ class ConstraintSettings(Base):
     institution_id  = Column(String, ForeignKey("institutions.id", ondelete="CASCADE"), nullable=False)
     mini_group_id   = Column(String, ForeignKey("mini_groups.id", ondelete="CASCADE"), nullable=True)
     settings_json   = Column(Text, nullable=False, default="{}")
+    constraint_mask = Column(BigInteger, nullable=False, default=0)
     is_active       = Column(Boolean, default=True)
     created_at      = Column(DateTime, server_default=func.now())
 

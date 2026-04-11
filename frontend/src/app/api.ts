@@ -4,7 +4,7 @@
  */
 import { getToken } from './auth/client';
 
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const BASE = 'http://localhost:8000'; //import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 export class ApiError extends Error {
   status: number;
@@ -34,7 +34,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     let detail = text;
-    try { detail = JSON.parse(text).detail ?? text; } catch {}
+    try { detail = JSON.parse(text).detail ?? text; } catch { }
     throw new ApiError(method, url, res.status, detail);
   }
   if (res.status === 204) return undefined as T;
@@ -106,6 +106,7 @@ export interface LessonBlockOut {
 
 export interface ConstraintSettingsOut {
   settings_json: string;
+  constraint_mask: number;
   is_active: boolean;
 }
 
@@ -190,6 +191,7 @@ export const api = {
     time_limit_seconds?: number;
     seed?: number | null;
     fast_mode?: boolean;
+    constraint_mask?: number;
   }): Promise<GenerateResponse> {
     return request('POST', api_url('/api/generate/main'), opts ?? {});
   },

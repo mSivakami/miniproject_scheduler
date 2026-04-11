@@ -35,6 +35,26 @@ def get_db():
 def create_tables():
     """Create all tables (idempotent — safe to call on every startup)."""
     Base.metadata.create_all(bind=engine)
+    _migrate_schema()
+
+
+def _migrate_schema():
+    """
+    Apply lightweight column-level schema migrations.
+    SQLAlchemy's create_all only creates new tables — it won't add columns
+    to existing ones.  This function handles that gap for SQLite.
+    """
+    import sqlalchemy as sa
+
+    with engine.connect() as conn:
+        # Check if constraint_mask column exists on constraint_settings
+        result = conn.execute(sa.text("PRAGMA table_info(constraint_settings)"))
+        columns = {row[1] for row in result}
+        if "constraint_mask" not in columns:
+            conn.execute(sa.text(
+                "ALTER TABLE constraint_settings ADD COLUMN constraint_mask BIGINT NOT NULL DEFAULT 0"
+            ))
+            conn.commit()
 
 
 def get_or_create_institution(db) -> 'Institution':

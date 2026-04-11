@@ -223,7 +223,7 @@ def _db_to_ga_structures(institution, teachers, subjects, rooms, classrooms, les
 
 
 def run_ga_from_db(institution, teachers, subjects, rooms, classrooms, lesson_blocks,
-                   constraint_settings=None,
+                   constraint_settings=None, constraint_mask: int | None = None,
                    max_generations=2000, population_size=300,
                    time_limit_seconds=120, seed=None, fast_mode=False) -> dict:
     """
@@ -260,7 +260,17 @@ def run_ga_from_db(institution, teachers, subjects, rooms, classrooms, lesson_bl
         config.fast_mode_generations = 50
         config.max_generations = min(max_generations, 500)
 
-    constraints = _build_constraint_settings(constraint_settings)
+    # Resolve constraint settings:
+    #   Priority: request mask > DB mask > legacy JSON
+    effective_mask = constraint_mask
+    if effective_mask is None and constraint_settings and hasattr(constraint_settings, 'constraint_mask'):
+        effective_mask = constraint_settings.constraint_mask or None
+
+    if effective_mask is not None and effective_mask > 0:
+        from engine.constraint_mask import decode_constraint_mask
+        constraints = decode_constraint_mask(effective_mask)
+    else:
+        constraints = _build_constraint_settings(constraint_settings)
 
     # Run!
     engine = GAEngine(data=data, config=config, constraints=constraints)

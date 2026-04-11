@@ -31,7 +31,7 @@ function loadStoredConstraintItems(): StoredConstraint[] | null {
     if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { constraints?: unknown }).constraints)) {
       return (parsed as { constraints: StoredConstraint[] }).constraints;
     }
-  } catch {}
+  } catch { }
 
   return null;
 }
@@ -81,7 +81,7 @@ function parseConstraintSettings(
         constraints: Array.isArray(payload.constraints) ? payload.constraints : null,
       };
     }
-  } catch {}
+  } catch { }
 
   return { breaks: fallbackBreaks, constraints: null };
 }
@@ -184,14 +184,14 @@ function loadConstraints(): Partial<SchedulerConstraints> {
     if (!arr) return {};
     const get = (id: string) => arr.find(c => c.id === id);
     return {
-      noConsecutivePeriods:           get('no_consecutive_periods')?.enabled  ?? true,
-      noConsecutivePeriodsWeight:     get('no_consecutive_periods')?.weight   ?? 70,
-      difficultNotLast:               get('difficult_not_last')?.enabled      ?? true,
-      difficultNotLastWeight:         get('difficult_not_last')?.weight       ?? 60,
-      avoidMorningLab:                get('avoid_morning_lab')?.enabled       ?? false,
-      avoidMorningLabWeight:          get('avoid_morning_lab')?.weight        ?? 50,
-      noSameSubjectTwicePerDay:       get('no_subject_twice_same_day')?.enabled ?? true,
-      noSameSubjectTwicePerDayWeight: get('no_subject_twice_same_day')?.weight  ?? 80,
+      noConsecutivePeriods: get('no_consecutive_periods')?.enabled ?? true,
+      noConsecutivePeriodsWeight: get('no_consecutive_periods')?.weight ?? 70,
+      difficultNotLast: get('difficult_not_last')?.enabled ?? true,
+      difficultNotLastWeight: get('difficult_not_last')?.weight ?? 60,
+      avoidMorningLab: get('avoid_morning_lab')?.enabled ?? false,
+      avoidMorningLabWeight: get('avoid_morning_lab')?.weight ?? 50,
+      noSameSubjectTwicePerDay: get('no_subject_twice_same_day')?.enabled ?? true,
+      noSameSubjectTwicePerDayWeight: get('no_subject_twice_same_day')?.weight ?? 80,
     };
   } catch { return {}; }
 }
@@ -272,6 +272,7 @@ export interface AppSettings {
   numberOfDays: string;
   breakAfterPeriod: number;
   breaks: Break[];
+  constraintMask: number;
 }
 
 export interface TimetableEntry {
@@ -312,9 +313,10 @@ const defaultSettings: AppSettings = {
   numberOfDays: '5',
   breakAfterPeriod: 3,
   breaks: [],
+  constraintMask: 0,
 };
 
-const COLORS = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#06b6d4','#ec4899','#84cc16'];
+const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#84cc16'];
 function assignColor(id: string) {
   let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return COLORS[h % COLORS.length];
@@ -400,7 +402,7 @@ function mapAllData(data: AllDataOut): {
       if (!existing.class_ids.length) existing.class_ids = lb.classroom_ids;
       if (!existing.room_ids.length) existing.room_ids = lb.room_ids;
       if (!existing.subject_id) existing.subject_id = lb.subject_ids[0] ?? '';
-      if (!existing.subject_name) existing.subject_name = lb.subject_name;
+      if (!existing.subject_name) existing.subject_name = lb.subject_name ?? undefined;
       continue;
     }
 
@@ -417,7 +419,7 @@ function mapAllData(data: AllDataOut): {
       locked_duration: lb.is_locked ? duration : null,
       is_lab: lb.is_lab,
       is_difficult: lb.is_difficult,
-      subject_name: lb.subject_name,
+      subject_name: lb.subject_name ?? undefined,
       mini_group_id: lb.mini_group_id,
     });
   }
@@ -431,6 +433,7 @@ function mapAllData(data: AllDataOut): {
     numberOfDays: String(inst.days_per_week),
     breakAfterPeriod: constraintSettings.breaks[0]?.period ?? inst.break_after_period,
     breaks: constraintSettings.breaks,
+    constraintMask: data.constraint_settings?.constraint_mask ?? 0,
   };
 
   return { subjects, teachers, classes, classrooms, lessons, settings };
@@ -513,67 +516,67 @@ function lessonsToBackend(lessons: Lesson[], subjects: Subject[]) {
 // ─── AppState interface ───────────────────────────────────────────────────
 
 interface AppState {
-  subjects:   Subject[];
-  teachers:   Teacher[];
-  classes:    Class[];
+  subjects: Subject[];
+  teachers: Teacher[];
+  classes: Class[];
   classrooms: Classroom[];
-  lessons:    Lesson[];
+  lessons: Lesson[];
   generation: GenerationState;
-  settings:   AppSettings;
+  settings: AppSettings;
   isFirstTime: boolean;
   hasUnsavedChanges: boolean;
-  isBootstrapped:   boolean;
+  isBootstrapped: boolean;
   backendAvailable: boolean;
 
-  addSubject:          (s: Omit<Subject,   'id'>) => void;
-  updateSubject:       (id: string, s: Subject)   => void;
-  deleteSubject:       (id: string)               => void;
-  deleteAllSubjects:   ()                         => void;
+  addSubject: (s: Omit<Subject, 'id'>) => void;
+  updateSubject: (id: string, s: Subject) => void;
+  deleteSubject: (id: string) => void;
+  deleteAllSubjects: () => void;
 
-  addTeacher:          (t: Omit<Teacher,   'id'>) => void;
-  updateTeacher:       (id: string, t: Teacher)   => void;
-  deleteTeacher:       (id: string)               => void;
-  deleteAllTeachers:   ()                         => void;
+  addTeacher: (t: Omit<Teacher, 'id'>) => void;
+  updateTeacher: (id: string, t: Teacher) => void;
+  deleteTeacher: (id: string) => void;
+  deleteAllTeachers: () => void;
 
-  addClass:            (c: Omit<Class,     'id'>) => void;
-  updateClass:         (id: string, c: Class)     => void;
-  deleteClass:         (id: string)               => void;
-  deleteAllClasses:    ()                         => void;
+  addClass: (c: Omit<Class, 'id'>) => void;
+  updateClass: (id: string, c: Class) => void;
+  deleteClass: (id: string) => void;
+  deleteAllClasses: () => void;
 
-  addClassroom:        (r: Omit<Classroom, 'id'>) => void;
-  updateClassroom:     (id: string, r: Classroom) => void;
-  deleteClassroom:     (id: string)               => void;
-  deleteAllClassrooms: ()                         => void;
+  addClassroom: (r: Omit<Classroom, 'id'>) => void;
+  updateClassroom: (id: string, r: Classroom) => void;
+  deleteClassroom: (id: string) => void;
+  deleteAllClassrooms: () => void;
 
-  addLesson:           (l: Omit<Lesson,    'id'>) => void;
-  updateLesson:        (id: string, l: Lesson)    => void;
-  deleteLesson:        (id: string)               => void;
-  deleteAllLessons:    ()                         => void;
+  addLesson: (l: Omit<Lesson, 'id'>) => void;
+  updateLesson: (id: string, l: Lesson) => void;
+  deleteLesson: (id: string) => void;
+  deleteAllLessons: () => void;
 
-  startGeneration:      ()  => Promise<void>;
-  resetGeneration:      ()  => void;
+  startGeneration: () => Promise<void>;
+  resetGeneration: () => void;
   updateTimetableEntry: (entryId: string, updated: TimetableEntry) => void;
-  restoreGeneration:    (timetable: GenerationState['timetable']) => void;
+  restoreGeneration: (timetable: GenerationState['timetable']) => void;
 
-  updateSettings:     (s: AppSettings) => void;
-  bootstrap:          ()  => Promise<void>;
-  saveAll:            ()  => Promise<void>;
-  markAsSaved:        ()  => void;
-  resetAllData:       ()  => void;
-  loadSampleData:     ()  => void;
-  completeOnboarding: ()  => void;
+  updateSettings: (s: AppSettings) => void;
+  bootstrap: () => Promise<void>;
+  saveAll: () => Promise<void>;
+  markAsSaved: () => void;
+  resetAllData: () => void;
+  loadSampleData: () => void;
+  completeOnboarding: () => void;
 }
 
 // ─── Sample data ──────────────────────────────────────────────────────────
 
 export const sampleSubjects = (): Subject[] => [
-  { id: 's1', name: 'Artificial Intelligence', short: 'AI',  is_difficult: true,  is_lab: false, priority: 1 },
-  { id: 's2', name: 'Data Structures',         short: 'DS',  is_difficult: false, is_lab: false, priority: 2 },
-  { id: 's3', name: 'Database Lab',            short: 'DBL', is_difficult: false, is_lab: true,  priority: 3 },
+  { id: 's1', name: 'Artificial Intelligence', short: 'AI', is_difficult: true, is_lab: false, priority: 1 },
+  { id: 's2', name: 'Data Structures', short: 'DS', is_difficult: false, is_lab: false, priority: 2 },
+  { id: 's3', name: 'Database Lab', short: 'DBL', is_difficult: false, is_lab: true, priority: 3 },
 ];
 export const sampleTeachers = (): Teacher[] => [
   { id: 't1', name: 'Anusree Radhakrishnan', short: 'AR', color: '#3b82f6', available_mask: -1, max_per_day: 6, max_per_week: 30, unavailable_slots: [] },
-  { id: 't2', name: 'Divya Krishnan',        short: 'DK', color: '#10b981', available_mask: -1, max_per_day: 6, max_per_week: 30, unavailable_slots: [] },
+  { id: 't2', name: 'Divya Krishnan', short: 'DK', color: '#10b981', available_mask: -1, max_per_day: 6, max_per_week: 30, unavailable_slots: [] },
 ];
 export const sampleClasses = (): Class[] => [
   { id: 'c1', name: 'CS-A', short: 'CS-A', capacity: 60 },
@@ -581,7 +584,7 @@ export const sampleClasses = (): Class[] => [
 ];
 export const sampleClassrooms = (): Classroom[] => [
   { id: 'r1', name: 'Room 201', short: 'R201', is_lab: false, building: '', color: '#a855f7' },
-  { id: 'r2', name: 'Lab A',    short: 'LA',   is_lab: true,  building: '', color: '#10b981' },
+  { id: 'r2', name: 'Lab A', short: 'LA', is_lab: true, building: '', color: '#10b981' },
 ];
 
 // ─── Store ────────────────────────────────────────────────────────────────
@@ -604,33 +607,33 @@ export const useStore = create<AppState>()(
       backendAvailable: false,
 
       // ── CRUD: Subjects ────────────────────────────────────────────────
-      addSubject:        (s) => set(st => ({ subjects:   [...st.subjects,   { ...s, id: newId() }], hasUnsavedChanges: true })),
-      updateSubject:     (id, s) => set(st => ({ subjects:   st.subjects.map(x => x.id === id ? s : x), hasUnsavedChanges: true })),
-      deleteSubject:     (id) => set(st => ({ subjects:   st.subjects.filter(x => x.id !== id), hasUnsavedChanges: true })),
+      addSubject: (s) => set(st => ({ subjects: [...st.subjects, { ...s, id: newId() }], hasUnsavedChanges: true })),
+      updateSubject: (id, s) => set(st => ({ subjects: st.subjects.map(x => x.id === id ? s : x), hasUnsavedChanges: true })),
+      deleteSubject: (id) => set(st => ({ subjects: st.subjects.filter(x => x.id !== id), hasUnsavedChanges: true })),
       deleteAllSubjects: () => set({ subjects: [], hasUnsavedChanges: true }),
 
       // ── CRUD: Teachers ────────────────────────────────────────────────
-      addTeacher:        (t) => set(st => ({ teachers:   [...st.teachers,   { ...t, id: newId() }], hasUnsavedChanges: true })),
-      updateTeacher:     (id, t) => set(st => ({ teachers:   st.teachers.map(x => x.id === id ? t : x), hasUnsavedChanges: true })),
-      deleteTeacher:     (id) => set(st => ({ teachers:   st.teachers.filter(x => x.id !== id), hasUnsavedChanges: true })),
+      addTeacher: (t) => set(st => ({ teachers: [...st.teachers, { ...t, id: newId() }], hasUnsavedChanges: true })),
+      updateTeacher: (id, t) => set(st => ({ teachers: st.teachers.map(x => x.id === id ? t : x), hasUnsavedChanges: true })),
+      deleteTeacher: (id) => set(st => ({ teachers: st.teachers.filter(x => x.id !== id), hasUnsavedChanges: true })),
       deleteAllTeachers: () => set({ teachers: [], hasUnsavedChanges: true }),
 
       // ── CRUD: Classes ─────────────────────────────────────────────────
-      addClass:          (c) => set(st => ({ classes:    [...st.classes,    { ...c, id: newId() }], hasUnsavedChanges: true })),
-      updateClass:       (id, c) => set(st => ({ classes:    st.classes.map(x => x.id === id ? c : x), hasUnsavedChanges: true })),
-      deleteClass:       (id) => set(st => ({ classes:    st.classes.filter(x => x.id !== id), hasUnsavedChanges: true })),
-      deleteAllClasses:  () => set({ classes: [], hasUnsavedChanges: true }),
+      addClass: (c) => set(st => ({ classes: [...st.classes, { ...c, id: newId() }], hasUnsavedChanges: true })),
+      updateClass: (id, c) => set(st => ({ classes: st.classes.map(x => x.id === id ? c : x), hasUnsavedChanges: true })),
+      deleteClass: (id) => set(st => ({ classes: st.classes.filter(x => x.id !== id), hasUnsavedChanges: true })),
+      deleteAllClasses: () => set({ classes: [], hasUnsavedChanges: true }),
 
       // ── CRUD: Classrooms (physical rooms) ─────────────────────────────
-      addClassroom:        (r) => set(st => ({ classrooms: [...st.classrooms, { ...r, id: newId() }], hasUnsavedChanges: true })),
-      updateClassroom:     (id, r) => set(st => ({ classrooms: st.classrooms.map(x => x.id === id ? r : x), hasUnsavedChanges: true })),
-      deleteClassroom:     (id) => set(st => ({ classrooms: st.classrooms.filter(x => x.id !== id), hasUnsavedChanges: true })),
+      addClassroom: (r) => set(st => ({ classrooms: [...st.classrooms, { ...r, id: newId() }], hasUnsavedChanges: true })),
+      updateClassroom: (id, r) => set(st => ({ classrooms: st.classrooms.map(x => x.id === id ? r : x), hasUnsavedChanges: true })),
+      deleteClassroom: (id) => set(st => ({ classrooms: st.classrooms.filter(x => x.id !== id), hasUnsavedChanges: true })),
       deleteAllClassrooms: () => set({ classrooms: [], hasUnsavedChanges: true }),
 
       // ── CRUD: Lessons ─────────────────────────────────────────────────
-      addLesson:        (l) => set(st => ({ lessons: [...st.lessons, { ...l, id: newId() }], hasUnsavedChanges: true })),
-      updateLesson:     (id, l) => set(st => ({ lessons: st.lessons.map(x => x.id === id ? l : x), hasUnsavedChanges: true })),
-      deleteLesson:     (id) => set(st => ({ lessons: st.lessons.filter(x => x.id !== id), hasUnsavedChanges: true })),
+      addLesson: (l) => set(st => ({ lessons: [...st.lessons, { ...l, id: newId() }], hasUnsavedChanges: true })),
+      updateLesson: (id, l) => set(st => ({ lessons: st.lessons.map(x => x.id === id ? l : x), hasUnsavedChanges: true })),
+      deleteLesson: (id) => set(st => ({ lessons: st.lessons.filter(x => x.id !== id), hasUnsavedChanges: true })),
       deleteAllLessons: () => set({ lessons: [], hasUnsavedChanges: true }),
 
       // ── Generation ────────────────────────────────────────────────────
@@ -650,7 +653,9 @@ export const useStore = create<AppState>()(
         // Try backend first (Python GA)
         if (s.backendAvailable) {
           try {
-            const result: GenerateResponse = await api.generate();
+            const result: GenerateResponse = await api.generate({
+              constraint_mask: 366503874560,
+            });
             const entries = convertBackendTimetable(result, s);
             const ttId = `gen_${Date.now()}`;
             set({
@@ -805,6 +810,7 @@ export const useStore = create<AppState>()(
           lesson_blocks: lessonsToBackend(s.lessons, s.subjects),
           constraint_settings: {
             settings_json: buildConstraintSettingsPayload(breaks),
+            constraint_mask: s.settings.constraintMask,
             is_active: true,
           },
         };
@@ -818,7 +824,7 @@ export const useStore = create<AppState>()(
         }
       },
 
-      markAsSaved:        () => set({ hasUnsavedChanges: false }),
+      markAsSaved: () => set({ hasUnsavedChanges: false }),
       completeOnboarding: () => set({ isFirstTime: false }),
 
       resetAllData: () => set({
@@ -829,12 +835,12 @@ export const useStore = create<AppState>()(
       }),
 
       loadSampleData: () => set({
-        subjects:   sampleSubjects(),
-        teachers:   sampleTeachers(),
-        classes:    sampleClasses(),
+        subjects: sampleSubjects(),
+        teachers: sampleTeachers(),
+        classes: sampleClasses(),
         classrooms: sampleClassrooms(),
-        lessons:    [],
-        settings:   { ...defaultSettings, schoolName: 'Government Engineering College' },
+        lessons: [],
+        settings: { ...defaultSettings, schoolName: 'Government Engineering College' },
         hasUnsavedChanges: true,
       }),
     }),
