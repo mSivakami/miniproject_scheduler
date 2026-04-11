@@ -5,7 +5,7 @@ import { Card, CardContent } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/dialog";
 import { PageWrapper } from "../components/PageWrapper";
-import { useStore, type TimetableEntry } from "../store/useStore";
+import { useStore, type TimetableEntry, type AppSettings } from "../store/useStore";
 import { toast } from "sonner";
 import { api, type TimetableDetailOut, type TimetableOut } from "../api";
 
@@ -39,11 +39,19 @@ interface DisplaySavedTimetable {
   source: "server" | "local";
 }
 
+interface GridSettings {
+  numberOfDays: string;
+  periodsPerDay: string;
+  breakAfterPeriod: number;
+  breaks: { day: number; period: number }[];
+}
+
 interface RestorableTimetable {
   timetable_id: string;
   fitness: number;
   entries: TimetableEntry[];
   generation_time_seconds: number | null;
+  grid_settings?: GridSettings;
 }
 
 const MAX_SAVED = 5;
@@ -135,12 +143,21 @@ function parseRestorableTimetable(rawJson: string): RestorableTimetable {
     throw new Error("Saved timetable data is missing required fields.");
   }
 
+  const gs = (timetable as Record<string, unknown>).grid_settings;
+  const grid_settings: GridSettings | undefined =
+    gs && typeof gs === "object" &&
+    typeof (gs as GridSettings).numberOfDays === "string" &&
+    typeof (gs as GridSettings).periodsPerDay === "string"
+      ? (gs as GridSettings)
+      : undefined;
+
   return {
     timetable_id: timetable.timetable_id,
     fitness: timetable.fitness,
     entries: timetable.entries,
     generation_time_seconds:
       typeof timetable.generation_time_seconds === "number" ? timetable.generation_time_seconds : null,
+    grid_settings,
   };
 }
 
@@ -167,9 +184,7 @@ function useLocalSavedTimetables() {
 }
 
 export function SavedTimetables() {
-  const { generation, restoreGeneration, backendAvailable } = useStore();
-  const { saved: localSaved, save: saveLocal, remove: removeLocal, clear: clearLocal } = useLocalSavedTimetables();
-
+  const { generation, restoreGeneration, backendAvailable, settings, updateSettings } = useStore();  const { saved: localSaved, save: saveLocal, remove: removeLocal, clear: clearLocal } = useLocalSavedTimetables();
   const [serverSaved, setServerSaved] = useState<TimetableOut[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -245,12 +260,22 @@ export function SavedTimetables() {
   const handleSaveSnapshot = async () => {
     if (!currentTimetable) return;
 
+    const snapshotPayload = {
+      ...currentTimetable,
+      grid_settings: {
+        numberOfDays: settings.numberOfDays,
+        periodsPerDay: settings.periodsPerDay,
+        breakAfterPeriod: settings.breakAfterPeriod,
+        breaks: settings.breaks,
+      },
+    };
+
     setIsSaving(true);
     try {
       if (usingServer) {
         await api.saveTimetable({
           name: `Snapshot ${savedItems.length + 1}`,
-          timetable_json: JSON.stringify(currentTimetable),
+          timetable_json: JSON.stringify(snapshotPayload),
           fitness_score: currentTimetable.fitness,
           hard_violations: generation.hardViolations ?? 0,
           soft_violations: generation.softViolations ?? 0,
@@ -262,7 +287,7 @@ export function SavedTimetables() {
           fitness: currentTimetable.fitness,
           generationTime: currentTimetable.generation_time_seconds,
           entriesCount: currentTimetable.entries.length,
-          timetableJson: JSON.stringify(currentTimetable),
+          timetableJson: JSON.stringify(snapshotPayload),
         });
       }
       toast.success("Snapshot saved.");
@@ -280,6 +305,16 @@ export function SavedTimetables() {
         item.source === "server"
           ? parseRestorableTimetable((await loadServerDetail(item.id)).timetable_json)
           : parseRestorableTimetable(localSaved.find(saved => saved.id === item.id)?.timetableJson ?? "");
+
+      if (timetable.grid_settings) {
+        updateSettings({
+          ...settings,
+          numberOfDays: timetable.grid_settings.numberOfDays,
+          periodsPerDay: timetable.grid_settings.periodsPerDay,
+          breakAfterPeriod: timetable.grid_settings.breakAfterPeriod,
+          breaks: timetable.grid_settings.breaks,
+        });
+      }
 
       restoreGeneration(timetable);
       toast.success(`"${item.name}" loaded to timetable view.`);
