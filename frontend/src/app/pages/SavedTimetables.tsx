@@ -112,16 +112,6 @@ function formatDate(iso: string) {
     " - " + d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 }
 
-function downloadJSON(filename: string, value: unknown) {
-  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function parseRestorableTimetable(rawJson: string): RestorableTimetable {
   let parsed: unknown;
   try {
@@ -184,7 +174,8 @@ function useLocalSavedTimetables() {
 }
 
 export function SavedTimetables() {
-  const { generation, restoreGeneration, backendAvailable, settings, updateSettings } = useStore();  const { saved: localSaved, save: saveLocal, remove: removeLocal, clear: clearLocal } = useLocalSavedTimetables();
+  const { generation, restoreGeneration, backendAvailable, settings, updateSettings, teachers, classes, classrooms } = useStore();  
+  const { saved: localSaved, save: saveLocal, remove: removeLocal, clear: clearLocal } = useLocalSavedTimetables();
   const [serverSaved, setServerSaved] = useState<TimetableOut[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -327,13 +318,204 @@ export function SavedTimetables() {
 
   const handleExport = async (item: DisplaySavedTimetable) => {
     try {
-      const payload =
+      const rawJson =
         item.source === "server"
-          ? JSON.parse((await loadServerDetail(item.id)).timetable_json)
-          : JSON.parse(localSaved.find(saved => saved.id === item.id)?.timetableJson ?? "");
+          ? (await loadServerDetail(item.id)).timetable_json
+          : (localSaved.find(saved => saved.id === item.id)?.timetableJson ?? "");
 
-      downloadJSON(`timetable_${item.name.replace(/\s+/g, "_")}.json`, payload);
-      toast.success("Timetable exported.");
+      const payload = parseRestorableTimetable(rawJson);
+      const entries = payload.entries;
+      const gs = payload.grid_settings;
+
+      const snapshotNumDays    = parseInt(gs?.numberOfDays  ?? settings.numberOfDays)  || 5;
+      const snapshotNumPeriods = parseInt(gs?.periodsPerDay ?? settings.periodsPerDay) || 7;
+      const snapshotBreaks     = gs?.breaks ?? settings.breaks ?? [];
+
+      const dayNames = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].slice(0, snapshotNumDays);
+
+      const SUBJECT_PALETTE = [
+        "#DBEAFE","#DCFCE7","#FEF9C3","#FFE4C4","#EDE9FE",
+        "#CCFBF1","#FCE7F3","#E0F2FE","#E0E7FF","#FEE2E2",
+        "#D1FAE5","#FEF3C7","#DDD6FE","#ECFDF5","#FFF1F2",
+      ];
+      const colorMap = new Map<string, string>();
+      let ci = 0;
+      for (const e of entries) {
+        if (!colorMap.has(e.subject_id)) {
+          colorMap.set(e.subject_id, SUBJECT_PALETTE[ci % SUBJECT_PALETTE.length]);
+          ci++;
+        }
+      }
+
+      const breakSet = new Set(snapshotBreaks.map((b: { day: number; period: number }) => `${b.day}_${b.period}`));
+      const periodNums = Array.from({ length: snapshotNumPeriods }, (_, i) => i);
+
+      const buildTable = (
+        entityId: string,
+        entityName: string,
+        entityShort: string,
+        mode: "teacher" | "class" | "classroom",
+        accent: string,
+      ): string => {
+        const startMap = new Map<string, typeof entries[0]>();
+        const spanned  = new Set<string>();
+
+        for (const entry of entries) {
+          const belongs =
+            mode === "teacher"   ? entry.teacher_ids.includes(entityId)
+            : mode === "class"   ? entry.class_ids.includes(entityId)
+            :                      entry.room_ids.includes(entityId);
+          if (!belongs) continue;
+          startMap.set(`${entry.day}_${entry.start_period}`, entry);
+          for (let offset = 1; offset < entry.duration; offset++)
+            spanned.add(`${entry.day}_${entry.start_period + offset}`);
+        }
+
+        const headerCells = periodNums.map(p =>
+          `<th style="background:${accent};color:#fff;padding:9px 4px;font-size:9px;font-weight:700;border:1px solid rgba(255,255,255,0.2);">P${p+1}</th>`
+        ).join("");
+
+        const rows = Array.from({ length: snapshotNumDays }, (_, dayIndex) => {
+          const skips = new Set<number>();
+          let cells = `<td style="background:#f1f5f9;font-size:9px;font-weight:700;color:#475569;text-align:center;padding:6px 4px;border:1px solid #e2e8f0;width:54px;">${dayNames[dayIndex]}</td>`;
+
+          for (const periodIndex of periodNums) {
+            if (skips.has(periodIndex)) continue;
+            const key = `${dayIndex}_${periodIndex}`;
+            if (spanned.has(key)) { cells += `<td style="display:none"></td>`; continue; }
+
+            if (breakSet.has(key)) {
+              cells += `<td style="background:#fffbeb;border:1px solid #e2e8f0;text-align:center;vertical-align:middle;padding:4px;">
+                <span style="color:#92400e;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;">Break</span>
+              </td>`;
+              continue;
+            }
+
+            const entry = startMap.get(key);
+            if (!entry) { cells += `<td style="border:1px solid #e2e8f0;background:#fff;"></td>`; continue; }
+
+            const span = Math.min(entry.duration, snapshotNumPeriods - periodIndex);
+            for (let s = 1; s < span; s++) skips.add(periodIndex + s);
+
+            const bg = colorMap.get(entry.subject_id) ?? "#f1f5f9";
+
+            let secondary = "";
+            let tertiary  = "";
+            if (mode === "teacher") {
+              secondary = entry.class_ids.map(id => classes.find(c => c.id === id)?.name).filter(Boolean).join(" / ");
+              tertiary  = entry.room_ids.map(id => classrooms.find(r => r.id === id)?.short).filter(Boolean).join(", ");
+            } else if (mode === "class") {
+              secondary = entry.teacher_ids.map(id => teachers.find(t => t.id === id)?.name.split(" ").pop()).filter(Boolean).join(" / ");
+              tertiary  = entry.room_ids.map(id => classrooms.find(r => r.id === id)?.short).filter(Boolean).join(", ");
+            } else {
+              secondary = entry.class_ids.map(id => classes.find(c => c.id === id)?.name).filter(Boolean).join(" / ");
+              tertiary  = entry.teacher_ids.map(id => teachers.find(t => t.id === id)?.name.split(" ").pop()).filter(Boolean).join(" / ");
+            }
+
+            cells += `
+              <td colspan="${span}" style="background:${bg};border:1px solid #e2e8f0;border-left:3px solid ${accent};padding:5px 6px;vertical-align:middle;">
+                <div style="font-size:9px;font-weight:800;color:#1e293b;line-height:1.3;">${entry.subject_name}</div>
+                ${secondary ? `<div style="font-size:8px;color:#475569;margin-top:1px;">${secondary}</div>` : ""}
+                ${tertiary  ? `<div style="font-size:7.5px;color:#64748b;">${tertiary}</div>` : ""}
+                ${entry.duration > 1 ? `<div style="font-size:7px;color:#7c3aed;font-weight:700;margin-top:2px;">[${entry.duration} periods]</div>` : ""}
+              </td>`;
+          }
+          return `<tr>${cells}</tr>`;
+        }).join("");
+
+        return `
+          <div class="entity-block">
+            <div class="entity-header" style="border-left:4px solid ${accent};">
+              <span class="entity-name">${entityName}</span>
+              <span class="entity-badge">${entityShort}</span>
+            </div>
+            <table>
+              <colgroup><col style="width:54px"/>${periodNums.map(() => `<col/>`).join("")}</colgroup>
+              <thead><tr>
+                <th style="background:${accent};color:#fff;padding:9px 4px;font-size:9px;font-weight:700;border:1px solid rgba(255,255,255,0.2);">Day</th>
+                ${headerCells}
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
+      };
+
+      const sections = [
+        { title: "Class Timetables",   mode: "class"      as const, entities: classes,     accent: "#2563eb" },
+        { title: "Teacher Timetables", mode: "teacher"    as const, entities: teachers,    accent: "#16a34a" },
+        { title: "Room Timetables",    mode: "classroom"  as const, entities: classrooms,  accent: "#7c3aed" },
+      ];
+
+      const coverHeader = `
+        <div style="padding:0 0 10px 0;border-bottom:2px solid #e2e8f0;margin-bottom:10px;">
+          <div style="font-size:16px;font-weight:800;color:#0f172a;">${item.name}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:3px;">
+            ${snapshotNumDays} days &times; ${snapshotNumPeriods} periods &nbsp;|&nbsp;
+            Saved: ${formatDate(item.savedAt)} &nbsp;|&nbsp;
+            Fitness: ${item.fitness?.toFixed(3)}
+          </div>
+        </div>`;
+
+      const sectionsHTML = sections.map(({ title, mode, entities: ents, accent }, idx) => `
+        <div class="section">
+          ${idx === 0 ? coverHeader : ""}
+          <div class="section-title" style="border-left:5px solid ${accent};color:${accent};">${title}</div>
+          ${ents.map(e => buildTable(e.id, e.name, e.short, mode, accent)).join("")}
+        </div>
+      `).join("");
+
+      const printWindow = window.open("", "_blank", "width=1280,height=900");
+      if (!printWindow) { toast.error("Popup blocked. Please allow popups and try again."); return; }
+
+      printWindow.document.write(`
+        <!DOCTYPE html><html><head>
+        <title>${item.name} — Timetable Report</title>
+        <style>
+          *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+          body { font-family:'Segoe UI', system-ui, sans-serif; background:#fff; color:#1e293b; }
+          .section { margin-bottom:0; }
+          .section + .section { page-break-before:always; }
+          .section-title {
+            font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+            padding:8px 14px; background:#f8fafc; margin-bottom:0; border-radius:0 4px 4px 0;
+          }
+          .entity-block {
+          page-break-inside:avoid;
+          padding:8px 0 16px;
+          justify-content:center;
+          }
+          .entity-block + .entity-block { page-break-before:always; }
+          .entity-header {
+            display:flex; align-items:center; gap:10px;
+            padding:6px 12px; background:#f8fafc;
+            border:1px solid #e2e8f0; border-bottom:none; border-radius:6px 6px 0 0;
+          }
+          .entity-name  { font-size:11px; font-weight:800; color:#0f172a; }
+          .entity-badge { font-size:8.5px; color:#64748b; background:#e2e8f0;
+                          padding:1px 7px; border-radius:9999px; font-weight:600; }
+          table { width:100%; border-collapse:collapse; table-layout:fixed;
+                  border:1px solid #e2e8f0; border-top:none; border-radius:0 0 6px 6px; overflow:hidden; }
+          th, td { border:1px solid #e2e8f0; height:52px; overflow:hidden;
+                   vertical-align:middle; text-align:center; padding:0; }
+          thead th { height:30px; font-size:8.5px; font-weight:700; color:#fff;
+                     letter-spacing:.03em; padding:0 2px; }
+          @media print {
+            body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+            @page { size:A4 landscape; margin:10mm 12mm; }
+            .section { page-break-before:always; }
+            .section:first-child { page-break-before:avoid; }
+            .entity-block { page-break-inside:avoid; }
+          }
+        </style>
+        </head><body>
+        ${sectionsHTML}
+        </body></html>
+      `);
+
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => { printWindow.print(); printWindow.close(); }, 900);
+      toast.success("Print dialog opened — choose 'Save as PDF'.");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to export timetable.";
       toast.error(message);
