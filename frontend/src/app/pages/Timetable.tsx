@@ -505,8 +505,8 @@ function TimetableView() {
       { title: "Room Timetables",    mode: "classroom"  as const, entities: classrooms,  accent: "#7c3aed" },
     ];
 
-    const sectionsHTML = sections.map(({ title, mode, entities: ents, accent }, si) => `
-      <div class="section" style="${si > 0 ? "page-break-before:always;" : ""}">
+    const sectionsHTML = sections.map(({ title, mode, entities: ents, accent }) => `
+      <div class="section">
         <div class="section-title" style="border-left:5px solid ${accent};color:${accent};">
           ${title}
         </div>
@@ -540,15 +540,25 @@ function TimetableView() {
         body { font-family:'Segoe UI', system-ui, sans-serif; background:#fff; color:#1e293b; }
 
         /* ── Section ── */
-        .section { margin-bottom: 32px; }
+        .section { margin-bottom: 0; }
+        .section + .section { page-break-before:always; }
         .section-title {
           font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
           padding:8px 14px; background:#f8fafc; border-left:5px solid currentColor;
-          margin-bottom:16px; border-radius:0 4px 4px 0;
+          margin-bottom:0; border-radius:0 4px 4px 0;
+          text-align:left;
         }
 
         /* ── Entity block ── */
-        .entity-block { margin-bottom:20px; page-break-inside:avoid; }
+        .entity-block {
+          page-break-inside:avoid;
+          display:flex;
+          flex-direction:column;
+          justify-content:center;
+          min-height:180mm;
+          padding:24mm 0 16mm;
+        }
+        .entity-block + .entity-block { page-break-before:always; }
         .entity-header {
           display:flex; align-items:center; gap:10px;
           padding:6px 12px; background:#f8fafc;
