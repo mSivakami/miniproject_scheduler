@@ -677,6 +677,20 @@ function TimetableView() {
     return false;
   };
 
+  const teacherUnavailableAt = (entry: TimetableEntry, day: number, startPeriod: number): string | null => {
+    for (const teacherId of entry.teacher_ids) {
+      const teacher = teachers.find(t => t.id === teacherId);
+      if (!teacher) continue;
+      for (let offset = 0; offset < entry.duration; offset++) {
+        const blocked = teacher.unavailable_slots.some(
+          s => s.day === day && s.period === startPeriod + offset
+        );
+        if (blocked) return teacher.name;
+      }
+    }
+    return null;
+  };
+
   const findBlockingEntry = (
     entry: TimetableEntry,
     day: number,
@@ -709,6 +723,13 @@ function TimetableView() {
       return;
     }
 
+    const draggedUnavail = teacherUnavailableAt(dragged, target.day, target.start_period);
+    const targetUnavail  = teacherUnavailableAt(target,  dragged.day, dragged.start_period);
+    if (draggedUnavail || targetUnavail) {
+      toast.error(`Can't swap: ${draggedUnavail ?? targetUnavail} is unavailable in that slot.`);
+      return;
+    }
+
     const draggedBlocker = findBlockingEntry(dragged, target.day, target.start_period, dragged.duration, [dragged.id, target.id]);
     const targetBlocker = findBlockingEntry(target, dragged.day, dragged.start_period, target.duration, [dragged.id, target.id]);
     if (draggedBlocker || targetBlocker) {
@@ -738,6 +759,12 @@ function TimetableView() {
 
     if (spansBreak(toDay, toPeriod, entry.duration)) {
       toast.error(`"${entry.subject_name}" can't be placed across a break slot.`);
+      return;
+    }
+
+    const unavailTeacher = teacherUnavailableAt(entry, toDay, toPeriod);
+    if (unavailTeacher) {
+      toast.error(`Can't move here: ${unavailTeacher} is unavailable in that slot.`);
       return;
     }
 
