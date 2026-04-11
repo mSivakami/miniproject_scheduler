@@ -216,7 +216,7 @@ export function Subjects() {
                     />
                   </TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Short</TableHead>
+                  <TableHead>Subject Code</TableHead>
                   <TableHead className="text-center">
                     <div className="flex items-center justify-center gap-1">
                       <Brain className="w-4 h-4" />
@@ -321,7 +321,7 @@ export function Subjects() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="short">Short Code</Label>
+              <Label htmlFor="short">Subject Code</Label>
               <Input
                 id="short"
                 placeholder="e.g., AI"
@@ -388,7 +388,7 @@ export function Subjects() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-short">Short Code</Label>
+                <Label htmlFor="edit-short">Subject Code</Label>
                 <Input
                   id="edit-short"
                   value={editingSubject.short}

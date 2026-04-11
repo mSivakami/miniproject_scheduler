@@ -368,13 +368,13 @@ function mapAllData(data: AllDataOut): {
   // backend "classrooms" = student classes; backend "rooms" = physical rooms
   const classes: Class[] = data.classrooms.map(c => ({
     id: c.id, name: c.name,
-    short: c.name.slice(0, 4).toUpperCase(),
+    short: c.short_name ?? c.name.slice(0, 4).toUpperCase(),
     capacity: c.capacity,
   }));
 
   const classrooms: Classroom[] = data.rooms.map(r => ({
     id: r.id, name: r.name,
-    short: r.name.slice(0, 3).toUpperCase(),
+    short: r.short_name ?? r.name.slice(0, 3).toUpperCase(),
     is_lab: r.is_lab, building: '', color: assignColor(r.id),
   }));
 
@@ -800,12 +800,12 @@ export const useStore = create<AppState>()(
           // frontend classrooms = physical rooms → backend rooms
           rooms: s.classrooms.map(r => ({
             id: r.id.startsWith('local_') ? undefined : r.id,
-            name: r.name, is_lab: r.is_lab, available_mask: -1,
+            name: r.name, short_name: r.short, is_lab: r.is_lab, available_mask: -1,
           })),
           // frontend classes = student sections → backend classrooms
           classrooms: s.classes.map(c => ({
             id: c.id.startsWith('local_') ? undefined : c.id,
-            name: c.name, capacity: c.capacity ?? 40,
+            name: c.name, short_name: c.short, capacity: c.capacity ?? 40,
           })),
           lesson_blocks: lessonsToBackend(s.lessons, s.subjects),
           constraint_settings: {

@@ -130,6 +130,7 @@ class Classroom(Base):
     id              = Column(String, primary_key=True, default=gen_uuid)
     institution_id  = Column(String, ForeignKey("institutions.id", ondelete="CASCADE"), nullable=False)
     name            = Column(String, nullable=False)
+    short_name      = Column(String, nullable=True)
     capacity        = Column(Integer, default=40)
     created_at      = Column(DateTime, server_default=func.now())
 
@@ -160,6 +161,7 @@ class Room(Base):
     id              = Column(String, primary_key=True, default=gen_uuid)
     institution_id  = Column(String, ForeignKey("institutions.id", ondelete="CASCADE"), nullable=False)
     name            = Column(String, nullable=False)
+    short_name      = Column(String, nullable=True)
     is_lab          = Column(Boolean, default=False)
     available_mask  = Column(String, default="-1")
     created_at      = Column(DateTime, server_default=func.now())

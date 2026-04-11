@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { Textarea } from "../components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
+import { Button } from "../app/components/ui/button";
+import { Input } from "../app/components/ui/input";
+import { Label } from "../app/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../app/components/ui/table";
+import { Textarea } from "../app/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../app/components/ui/dialog";
 import { Plus, Pencil, Trash2, BookOpen, Clock, Users as UsersIcon, Settings } from "lucide-react";
-import { Checkbox } from "../components/ui/checkbox";
-import { PageWrapper } from "../components/PageWrapper";
+import { Checkbox } from "../app/components/ui/checkbox";
+import { PageWrapper } from "./PageWrapper";
 
 interface Subject {
   id: string;
@@ -137,7 +137,7 @@ export function Subjects() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="font-semibold text-gray-700">Name</TableHead>
-                  <TableHead className="font-semibold text-gray-700">Short</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Subject Code</TableHead>
                   <TableHead className="font-semibold text-gray-700">Teacher</TableHead>
                   <TableHead className="font-semibold text-gray-700">Count</TableHead>
                   <TableHead className="font-semibold text-gray-700">Time off</TableHead>
@@ -198,7 +198,7 @@ export function Subjects() {
               <Input id="subjectName" placeholder="e.g., Artificial Intelligence" value={newSubject.name} onChange={(e) => setNewSubject({ ...newSubject, name: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="subjectShort">Short Code</Label>
+              <Label htmlFor="subjectShort">Subject Code</Label>
               <Input id="subjectShort" placeholder="e.g., AI" value={newSubject.short} onChange={(e) => setNewSubject({ ...newSubject, short: e.target.value })} />
             </div>
           </div>
@@ -221,7 +221,7 @@ export function Subjects() {
               <Input id="editSubjectName" value={editingSubject?.name || ""} onChange={(e) => setEditingSubject({ ...editingSubject!, name: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="editSubjectShort">Short Code</Label>
+              <Label htmlFor="editSubjectShort">Subject Code</Label>
               <Input id="editSubjectShort" value={editingSubject?.short || ""} onChange={(e) => setEditingSubject({ ...editingSubject!, short: e.target.value })} />
             </div>
             <div className="space-y-2">

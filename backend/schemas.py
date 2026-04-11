@@ -59,6 +59,7 @@ class TeacherBulkCreate(BaseModel):
 
 class ClassroomBase(BaseModel):
     name: str
+    short_name: Optional[str] = None
     capacity: int = 40
 
 class ClassroomCreate(ClassroomBase):
@@ -100,6 +101,7 @@ class SubjectBulkCreate(BaseModel):
 
 class RoomBase(BaseModel):
     name: str
+    short_name: Optional[str] = None
     is_lab: bool = False
     available_mask: Union[int, str] = -1
 
