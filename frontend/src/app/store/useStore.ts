@@ -654,7 +654,7 @@ export const useStore = create<AppState>()(
         if (s.backendAvailable) {
           try {
             const result: GenerateResponse = await api.generate({
-              constraint_mask: 366503874560,
+              constraint_mask: 376335849471,
             });
             const entries = convertBackendTimetable(result, s);
             const ttId = `gen_${Date.now()}`;
