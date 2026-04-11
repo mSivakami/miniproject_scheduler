@@ -5,7 +5,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
-import { Plus, Pencil, Trash2, BookOpen, Search, Trash, Sparkles, Beaker, Brain } from "lucide-react";
+import { Plus, Pencil, Trash2, BookOpen, Search, Trash, Sparkles, Beaker, Brain, Filter } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { Switch } from "../components/ui/switch";
 import { PageWrapper } from "../components/PageWrapper";
@@ -27,12 +27,20 @@ export function Subjects() {
     priority: 5 
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "normal" | "difficult" | "lab">("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const filteredSubjects = subjects.filter(subject =>
-    subject.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    subject.short.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredSubjects = subjects.filter(subject => {
+    const matchesSearch =
+      subject.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      subject.short.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType =
+      typeFilter === "all" ||
+      (typeFilter === "difficult" && subject.is_difficult) ||
+      (typeFilter === "lab" && subject.is_lab) ||
+      (typeFilter === "normal" && !subject.is_difficult && !subject.is_lab);
+    return matchesSearch && matchesType;
+  });
 
   const handleAddSubject = () => {
     if (newSubject.name && newSubject.short) {
@@ -133,14 +141,53 @@ export function Subjects() {
 
         {/* Search & Actions */}
         <div className="flex items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
-            <Input
-              placeholder="Search subjects..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+          <div className="flex items-center gap-4 flex-1">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
+              <Input
+                placeholder="Search subjects..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                <Button
+                  size="sm"
+                  variant={typeFilter === "all" ? "default" : "ghost"}
+                  onClick={() => setTypeFilter("all")}
+                  className="h-8"
+                >
+                  All
+                </Button>
+                <Button
+                  size="sm"
+                  variant={typeFilter === "normal" ? "default" : "ghost"}
+                  onClick={() => setTypeFilter("normal")}
+                  className="h-8"
+                >
+                  Normal
+                </Button>
+                <Button
+                  size="sm"
+                  variant={typeFilter === "difficult" ? "default" : "ghost"}
+                  onClick={() => setTypeFilter("difficult")}
+                  className="h-8"
+                >
+                  Difficult
+                </Button>
+                <Button
+                  size="sm"
+                  variant={typeFilter === "lab" ? "default" : "ghost"}
+                  onClick={() => setTypeFilter("lab")}
+                  className="h-8"
+                >
+                  Lab
+                </Button>
+              </div>
+            </div>
           </div>
           <div className="flex gap-2">
             {selectedIds.size > 0 && (
