@@ -22,6 +22,7 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Undo2,
   Users,
   XCircle,
   Zap,
@@ -110,9 +111,8 @@ function EntryCard({
   return (
     <div
       ref={ref}
-      className={`w-full h-full rounded-md p-2 select-none transition-all group ${
-        isDragging ? "opacity-40 scale-95" : ""
-      } ${isOver ? "ring-2 ring-inset" : ""} ${canEdit ? "cursor-move" : "cursor-default"}`}
+      className={`w-full h-full rounded-md p-2 select-none transition-all group ${isDragging ? "opacity-40 scale-95" : ""
+        } ${isOver ? "ring-2 ring-inset" : ""} ${canEdit ? "cursor-move" : "cursor-default"}`}
       style={{
         backgroundColor: `${color}15`,
         borderLeft: `3px solid ${color}`,
@@ -182,9 +182,8 @@ function EmptyCell({
   return (
     <div
       ref={ref}
-      className={`w-full h-full rounded-md border-2 border-dashed transition-colors min-h-[52px] ${
-        isOver && canEdit ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20" : "border-border/40 bg-muted/10"
-      }`}
+      className={`w-full h-full rounded-md border-2 border-dashed transition-colors min-h-[52px] ${isOver && canEdit ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20" : "border-border/40 bg-muted/10"
+        }`}
     />
   );
 }
@@ -376,21 +375,21 @@ function GenerationResultCards({
 
   const qualityColor =
     qualityPct >= 95 ? "text-emerald-600 dark:text-emerald-400" :
-    qualityPct >= 85 ? "text-blue-600 dark:text-blue-400" :
-    qualityPct >= 70 ? "text-amber-600 dark:text-amber-400" :
-    "text-red-600 dark:text-red-400";
+      qualityPct >= 85 ? "text-blue-600 dark:text-blue-400" :
+        qualityPct >= 70 ? "text-amber-600 dark:text-amber-400" :
+          "text-red-600 dark:text-red-400";
 
   const qualityBarColor =
     qualityPct >= 95 ? "bg-emerald-500" :
-    qualityPct >= 85 ? "bg-blue-500" :
-    qualityPct >= 70 ? "bg-amber-500" :
-    "bg-red-500";
+      qualityPct >= 85 ? "bg-blue-500" :
+        qualityPct >= 70 ? "bg-amber-500" :
+          "bg-red-500";
 
   const qualityLabel =
     qualityPct >= 95 ? "Excellent" :
-    qualityPct >= 85 ? "Good" :
-    qualityPct >= 70 ? "Fair" :
-    "Needs Improvement";
+      qualityPct >= 85 ? "Good" :
+        qualityPct >= 70 ? "Fair" :
+          "Needs Improvement";
 
   const hardViolations = violations.filter(v => v.type.toLowerCase().includes("hard") || v.type.startsWith("H"));
   const softViolations = violations.filter(v => !v.type.toLowerCase().includes("hard") && !v.type.startsWith("H"));
@@ -399,23 +398,20 @@ function GenerationResultCards({
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">
 
       {/* ── Preflight Check Card ─────────────────────────────────────────── */}
-      <div className={`rounded-xl border p-4 ${
-        preflightOk && preflightErrors.length === 0
+      <div className={`rounded-xl border p-4 ${preflightOk && preflightErrors.length === 0
           ? "border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-teal-50/60 dark:from-emerald-950/30 dark:to-teal-950/20 dark:border-emerald-800/60"
           : "border-red-200 bg-gradient-to-br from-red-50/80 to-rose-50/60 dark:from-red-950/30 dark:to-rose-950/20 dark:border-red-800/60"
-      }`}>
+        }`}>
         <div className="flex items-center gap-2 mb-3">
-          <Shield className={`w-4 h-4 ${
-            preflightOk && preflightErrors.length === 0
+          <Shield className={`w-4 h-4 ${preflightOk && preflightErrors.length === 0
               ? "text-emerald-600 dark:text-emerald-400"
               : "text-red-600 dark:text-red-400"
-          }`} />
+            }`} />
           <h3 className="text-sm font-semibold text-foreground">Pre-flight Check</h3>
-          <span className={`ml-auto text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-            preflightOk && preflightErrors.length === 0
+          <span className={`ml-auto text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${preflightOk && preflightErrors.length === 0
               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
               : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-          }`}>
+            }`}>
             {preflightOk && preflightErrors.length === 0 ? "Passed" : "Issues Found"}
           </span>
         </div>
@@ -581,9 +577,33 @@ function TimetableView() {
   const localEntries = generation.timetable?.entries ?? [];
   const breakKeys = new Set((settings.breaks ?? []).map(b => `${b.day}_${b.period}`));
 
+  const [undoStack, setUndoStack] = useState<{ id: string; oldEntry: TimetableEntry }[][]>([]);
+
+  const handleUndo = () => {
+    if (undoStack.length === 0) return;
+    const lastAction = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+    lastAction.forEach(step => {
+      updateTimetableEntry(step.id, step.oldEntry);
+    });
+    toast.success("Action undone.");
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        handleUndo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undoStack]);
+
   useEffect(() => {
     if (generation.status === "running") {
       setIsGenerating(true);
+      setUndoStack([]);
       return;
     }
 
@@ -625,11 +645,19 @@ function TimetableView() {
 
   const handleReset = () => {
     resetGeneration();
+    setUndoStack([]);
     toast.success("Timetable cleared.");
   };
 
-  const defaultSnapshotName = () =>
-    `Snapshot - ${new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`;
+  const defaultSnapshotName = () => {
+    try {
+      const localSaves = JSON.parse(localStorage.getItem("autoscheduler_saved_timetables") || "[]");
+      const count = Array.isArray(localSaves) ? localSaves.length : 0;
+      return `Snapshot ${count + 1}`;
+    } catch {
+      return "Snapshot 1";
+    }
+  };
 
   const handleSaveSnapshot = () => {
     if (!generation.timetable) return;
@@ -654,6 +682,30 @@ function TimetableView() {
     setIsSaving(true);
     try {
       if (backendAvailable) {
+        // Fetch existing timetables to check for duplicates
+        const existingServerTimetables = await api.listTimetables();
+        
+        let isDuplicate = false;
+        for (const t of existingServerTimetables) {
+           const detail = await api.getTimetable(t.id);
+           try {
+              const parsed = JSON.parse(detail.timetable_json);
+              if (parsed.timetable_id === generation.timetable?.timetable_id) {
+                 isDuplicate = true;
+                 break;
+              }
+           } catch {
+              continue;
+           }
+        }
+
+        if (isDuplicate) {
+           toast.error("This timetable has already been saved.");
+           setIsSaveDialogOpen(false);
+           setIsSaving(false);
+           return;
+        }
+
         await api.saveTimetable({
           name,
           timetable_json: JSON.stringify(snapshotPayload),
@@ -664,6 +716,24 @@ function TimetableView() {
       } else {
         const LOCAL_STORAGE_KEY = "autoscheduler_saved_timetables";
         const existing = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
+        
+        // Check for duplicates
+        const isDuplicate = existing.some((item: any) => {
+          try {
+             const parsed = JSON.parse(item.timetableJson);
+             return parsed.timetable_id === generation.timetable?.timetable_id;
+          } catch {
+             return false;
+          }
+        });
+
+        if (isDuplicate) {
+           toast.error("This timetable has already been saved.");
+           setIsSaveDialogOpen(false);
+           setIsSaving(false);
+           return;
+        }
+
         const newEntry = {
           id: crypto.randomUUID(),
           savedAt: new Date().toISOString(),
@@ -683,17 +753,17 @@ function TimetableView() {
       let clean = arrowIdx !== -1 ? raw.slice(arrowIdx + 2).trim() : raw;
       clean = clean.replace(/^\d+:\s*/, "").trim();
       toast.error(clean);
-    }finally {
+    } finally {
       setIsSaving(false);
     }
   };
 
 
   const SUBJECT_PALETTE = [
-    "#DBEAFE","#DCFCE7","#FEF9C3","#FFE4C4","#EDE9FE",
-    "#CCFBF1","#FCE7F3","#E0F2FE","#E0E7FF","#FEE2E2",
-    "#D1FAE5","#FEF3C7","#DDD6FE","#ECFDF5","#FFF1F2",
-    "#E0F2FE","#FEFCE8","#F3E8FF","#ECFDF5","#FFF7ED",
+    "#DBEAFE", "#DCFCE7", "#FEF9C3", "#FFE4C4", "#EDE9FE",
+    "#CCFBF1", "#FCE7F3", "#E0F2FE", "#E0E7FF", "#FEE2E2",
+    "#D1FAE5", "#FEF3C7", "#DDD6FE", "#ECFDF5", "#FFF1F2",
+    "#E0F2FE", "#FEFCE8", "#F3E8FF", "#ECFDF5", "#FFF7ED",
   ];
 
   const getSubjectColorMap = (): Map<string, string> => {
@@ -718,13 +788,13 @@ function TimetableView() {
     const breakSet = new Set((settings.breaks ?? []).map((b) => `${b.day}_${b.period}`));
 
     const startMap = new Map<string, TimetableEntry>();
-    const spanned  = new Set<string>();
+    const spanned = new Set<string>();
 
     for (const entry of localEntries) {
       const belongs =
         mode === "teacher" ? entry.teacher_ids.includes(entity.id)
-        : mode === "class"  ? entry.class_ids.includes(entity.id)
-        :                     entry.room_ids.includes(entity.id);
+          : mode === "class" ? entry.class_ids.includes(entity.id)
+            : entry.room_ids.includes(entity.id);
       if (!belongs) continue;
       startMap.set(`${entry.day}_${entry.start_period}`, entry);
       for (let offset = 1; offset < entry.duration; offset++)
@@ -732,7 +802,7 @@ function TimetableView() {
     }
 
     const headerCells = periodNums.map(p =>
-      `<th style="background:${accent};color:#fff;padding:9px 4px;font-size:9px;font-weight:700;border:1px solid rgba(255,255,255,0.2);">P${p+1}</th>`
+      `<th style="background:${accent};color:#fff;padding:9px 4px;font-size:9px;font-weight:700;border:1px solid rgba(255,255,255,0.2);">P${p + 1}</th>`
     ).join("");
 
     const rows = Array.from({ length: numDays }, (_, dayIndex) => {
@@ -754,30 +824,30 @@ function TimetableView() {
         const entry = startMap.get(key);
         if (!entry) { cells += `<td style="border:1px solid #e2e8f0;background:#fff;"></td>`; continue; }
 
-        const span    = Math.min(entry.duration, numPeriods - periodIndex);
+        const span = Math.min(entry.duration, numPeriods - periodIndex);
         for (let s = 1; s < span; s++) skips.add(periodIndex + s);
 
-        const bg      = colorMap.get(entry.subject_id) ?? "#f1f5f9";
-        const border  = accent;
+        const bg = colorMap.get(entry.subject_id) ?? "#f1f5f9";
+        const border = accent;
 
         let secondary = "";
-        let tertiary  = "";
+        let tertiary = "";
         if (mode === "teacher") {
           secondary = entry.class_ids.map(id => classes.find(c => c.id === id)?.name).filter(Boolean).join(" / ");
-          tertiary  = entry.room_ids.map(id => classrooms.find(r => r.id === id)?.short).filter(Boolean).join(", ");
+          tertiary = entry.room_ids.map(id => classrooms.find(r => r.id === id)?.short).filter(Boolean).join(", ");
         } else if (mode === "class") {
           secondary = entry.teacher_ids.map(id => teachers.find(t => t.id === id)?.name.split(" ").pop()).filter(Boolean).join(" / ");
-          tertiary  = entry.room_ids.map(id => classrooms.find(r => r.id === id)?.short).filter(Boolean).join(", ");
+          tertiary = entry.room_ids.map(id => classrooms.find(r => r.id === id)?.short).filter(Boolean).join(", ");
         } else {
           secondary = entry.class_ids.map(id => classes.find(c => c.id === id)?.name).filter(Boolean).join(" / ");
-          tertiary  = entry.teacher_ids.map(id => teachers.find(t => t.id === id)?.name.split(" ").pop()).filter(Boolean).join(" / ");
+          tertiary = entry.teacher_ids.map(id => teachers.find(t => t.id === id)?.name.split(" ").pop()).filter(Boolean).join(" / ");
         }
 
         cells += `
           <td colspan="${span}" style="background:${bg};border:1px solid #e2e8f0;border-left:3px solid ${border};padding:5px 6px;vertical-align:middle;">
             <div style="font-size:9px;font-weight:800;color:#1e293b;line-height:1.3;">${entry.subject_name}</div>
             ${secondary ? `<div style="font-size:8px;color:#475569;margin-top:1px;">${secondary}</div>` : ""}
-            ${tertiary  ? `<div style="font-size:7.5px;color:#64748b;">${tertiary}</div>` : ""}
+            ${tertiary ? `<div style="font-size:7.5px;color:#64748b;">${tertiary}</div>` : ""}
             ${entry.duration > 1 ? `<div style="font-size:7px;color:#7c3aed;font-weight:700;margin-top:2px;">[${entry.duration} periods]</div>` : ""}
           </td>`;
       }
@@ -791,7 +861,7 @@ function TimetableView() {
           <span class="entity-badge">${entity.short}</span>
         </div>
         <table>
-          <colgroup><col style="width:54px"/>${periodNums.map(()=>`<col/>`).join("")}</colgroup>
+          <colgroup><col style="width:54px"/>${periodNums.map(() => `<col/>`).join("")}</colgroup>
           <thead><tr>
             <th style="background:${accent};color:#fff;padding:9px 4px;font-size:9px;font-weight:700;border:1px solid rgba(255,255,255,0.2);">Day</th>
             ${headerCells}
@@ -807,9 +877,9 @@ function TimetableView() {
     const colorMap = getSubjectColorMap();
 
     const sections = [
-      { title: "Class Timetables",   mode: "class"      as const, entities: classes,     accent: "#2563eb" },
-      { title: "Teacher Timetables", mode: "teacher"    as const, entities: teachers,    accent: "#16a34a" },
-      { title: "Room Timetables",    mode: "classroom"  as const, entities: classrooms,  accent: "#7c3aed" },
+      { title: "Class Timetables", mode: "class" as const, entities: classes, accent: "#2563eb" },
+      { title: "Teacher Timetables", mode: "teacher" as const, entities: teachers, accent: "#16a34a" },
+      { title: "Room Timetables", mode: "classroom" as const, entities: classrooms, accent: "#7c3aed" },
     ];
 
     const sectionsHTML = sections.map(({ title, mode, entities: ents, accent }) => `
@@ -1017,7 +1087,7 @@ function TimetableView() {
     }
 
     const draggedUnavail = teacherUnavailableAt(dragged, target.day, target.start_period);
-    const targetUnavail  = teacherUnavailableAt(target,  dragged.day, dragged.start_period);
+    const targetUnavail = teacherUnavailableAt(target, dragged.day, dragged.start_period);
     if (draggedUnavail || targetUnavail) {
       toast.error(`Can't swap: ${draggedUnavail ?? targetUnavail} is unavailable in that slot.`);
       return;
@@ -1029,6 +1099,11 @@ function TimetableView() {
       toast.error(`Can't swap because it would conflict with ${draggedBlocker?.subject_name ?? targetBlocker?.subject_name}.`);
       return;
     }
+
+    setUndoStack(prev => [...prev.slice(-9), [
+      { id: dragged.id, oldEntry: { ...dragged } },
+      { id: target.id, oldEntry: { ...target } }
+    ]]);
 
     updateTimetableEntry(dragged.id, { ...dragged, day: target.day, start_period: target.start_period });
     updateTimetableEntry(target.id, { ...target, day: dragged.day, start_period: dragged.start_period });
@@ -1070,6 +1145,10 @@ function TimetableView() {
       return;
     }
 
+    setUndoStack(prev => [...prev.slice(-9), [
+      { id: entry.id, oldEntry: { ...entry } }
+    ]]);
+
     updateTimetableEntry(entry.id, { ...entry, day: toDay, start_period: toPeriod });
     toast.success(`Moved "${entry.subject_name}" to ${dayNames[toDay]?.slice(0, 3)} P${toPeriod + 1}.`);
   };
@@ -1093,7 +1172,7 @@ function TimetableView() {
             <div className="p-2.5 rounded-lg bg-muted">
               <Calendar className="w-5 h-5 text-muted-foreground" />
             </div>
-          <div>
+            <div>
               <h1 className="text-xl font-semibold">Timetable Generation</h1>
               <p className="text-sm text-muted-foreground">Generate and view schedules</p>
             </div>
@@ -1101,6 +1180,11 @@ function TimetableView() {
           <div className="flex gap-2">
             {generation.timetable && (
               <>
+                {undoStack.length > 0 && (
+                  <Button onClick={handleUndo} variant="outline" size="sm" className="gap-1.5 border-dashed border-muted-foreground/30 text-muted-foreground">
+                    <Undo2 className="w-4 h-4" /> Undo
+                  </Button>
+                )}
                 <Button onClick={handleExportPDF} variant="outline" size="sm" className="gap-1.5">
                   <FileDown className="w-4 h-4" /> Export PDF
                 </Button>
@@ -1234,7 +1318,7 @@ function TimetableView() {
           </Card>
         )}
       </div>
-    <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
+      <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Save snapshot</DialogTitle>
