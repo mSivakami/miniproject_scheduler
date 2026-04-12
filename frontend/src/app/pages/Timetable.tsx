@@ -6,17 +6,27 @@ import {
   AlertTriangle,
   BookOpen,
   Calendar,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
   DoorOpen,
   FileDown,
   GripVertical,
+  Info,
   RotateCcw,
   School,
+  Shield,
   Sparkles,
+  Target,
+  TrendingUp,
   Users,
+  XCircle,
+  Zap,
 } from "lucide-react";
 import type { Subject, Teacher, Class, Classroom } from "../store/useStore";
 import { PageWrapper } from "../components/PageWrapper";
-import { useStore, TimetableEntry } from "../store/useStore";
+import { useStore, TimetableEntry, GenerationState, ViolationDetail } from "../store/useStore";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -306,6 +316,236 @@ function EntityGrid({
   );
 }
 
+// ─── Generation Result Cards Component ──────────────────────────────────────
+
+function GenerationResultCards({
+  generation,
+  localEntries,
+}: {
+  generation: GenerationState;
+  localEntries: TimetableEntry[];
+}) {
+  const [showViolations, setShowViolations] = useState(false);
+
+  // Running state
+  if (generation.status === "running") {
+    return (
+      <div className="px-4 py-4 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 dark:border-blue-800">
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Generating timetable — running genetic algorithm...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Failed state
+  if (generation.status === "failed") {
+    return (
+      <div className="px-4 py-4 rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30 dark:border-red-800">
+        <div className="flex items-center gap-3">
+          <XCircle className="w-5 h-5 text-red-500 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-red-700 dark:text-red-300">Generation Failed</p>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{generation.error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Done state — show the two cards
+  const qualityPct = generation.qualityPct ?? (generation.fitness ? Math.min(100, generation.fitness / 1000) : 0);
+  const hardV = generation.hardViolations ?? 0;
+  const softV = generation.softViolations ?? 0;
+  const timeSec = generation.generationTimeSec ?? 0;
+  const lessonsPlaced = generation.lessonsPlaced ?? localEntries.length;
+  const totalLessons = generation.totalLessons ?? localEntries.length;
+  const preflightOk = generation.preflightOk ?? true;
+  const preflightErrors = generation.preflightErrors ?? [];
+  const preflightWarnings = generation.preflightWarnings ?? [];
+  const violations = generation.violationDetails ?? [];
+  const gaGens = generation.gaGenerations;
+  const gaStatus = generation.gaStatus;
+
+  const qualityColor =
+    qualityPct >= 95 ? "text-emerald-600 dark:text-emerald-400" :
+    qualityPct >= 85 ? "text-blue-600 dark:text-blue-400" :
+    qualityPct >= 70 ? "text-amber-600 dark:text-amber-400" :
+    "text-red-600 dark:text-red-400";
+
+  const qualityBarColor =
+    qualityPct >= 95 ? "bg-emerald-500" :
+    qualityPct >= 85 ? "bg-blue-500" :
+    qualityPct >= 70 ? "bg-amber-500" :
+    "bg-red-500";
+
+  const qualityLabel =
+    qualityPct >= 95 ? "Excellent" :
+    qualityPct >= 85 ? "Good" :
+    qualityPct >= 70 ? "Fair" :
+    "Needs Improvement";
+
+  const hardViolations = violations.filter(v => v.type.toLowerCase().includes("hard") || v.type.startsWith("H"));
+  const softViolations = violations.filter(v => !v.type.toLowerCase().includes("hard") && !v.type.startsWith("H"));
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">
+
+      {/* ── Preflight Check Card ─────────────────────────────────────────── */}
+      <div className={`rounded-xl border p-4 ${
+        preflightOk && preflightErrors.length === 0
+          ? "border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-teal-50/60 dark:from-emerald-950/30 dark:to-teal-950/20 dark:border-emerald-800/60"
+          : "border-red-200 bg-gradient-to-br from-red-50/80 to-rose-50/60 dark:from-red-950/30 dark:to-rose-950/20 dark:border-red-800/60"
+      }`}>
+        <div className="flex items-center gap-2 mb-3">
+          <Shield className={`w-4 h-4 ${
+            preflightOk && preflightErrors.length === 0
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-red-600 dark:text-red-400"
+          }`} />
+          <h3 className="text-sm font-semibold text-foreground">Pre-flight Check</h3>
+          <span className={`ml-auto text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+            preflightOk && preflightErrors.length === 0
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+              : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+          }`}>
+            {preflightOk && preflightErrors.length === 0 ? "Passed" : "Issues Found"}
+          </span>
+        </div>
+
+        {preflightErrors.length === 0 && preflightWarnings.length === 0 ? (
+          <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>All pre-flight checks passed. No issues detected.</span>
+          </div>
+        ) : (
+          <div className="space-y-1.5 max-h-32 overflow-y-auto">
+            {preflightErrors.map((err, i) => (
+              <div key={`err-${i}`} className="flex items-start gap-2 text-xs">
+                <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
+                <span className="text-red-700 dark:text-red-300">{err}</span>
+              </div>
+            ))}
+            {preflightWarnings.map((warn, i) => (
+              <div key={`warn-${i}`} className="flex items-start gap-2 text-xs">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                <span className="text-amber-700 dark:text-amber-300">{warn}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Generation Statistics Card ───────────────────────────────────── */}
+      <div className="rounded-xl border border-border bg-gradient-to-br from-slate-50/80 to-blue-50/40 dark:from-slate-950/40 dark:to-blue-950/20 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <h3 className="text-sm font-semibold text-foreground">Generation Statistics</h3>
+          {gaStatus && (
+            <span className="ml-auto text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+              {gaStatus === "optimal" ? "Optimal" : gaStatus === "stagnation" ? "Converged" : gaStatus === "time_limit" ? "Time Limit" : gaStatus}
+            </span>
+          )}
+        </div>
+
+        {/* Quality bar */}
+        <div className="mb-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" /> Schedule Quality
+            </span>
+            <span className={`text-sm font-bold ${qualityColor}`}>
+              {qualityPct.toFixed(1)}% — {qualityLabel}
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ${qualityBarColor}`}
+              style={{ width: `${Math.min(100, qualityPct)}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Stats grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-background/60 border border-border/50">
+            <Target className="w-3 h-3 text-blue-500" />
+            <div>
+              <p className="text-muted-foreground leading-none">Placed</p>
+              <p className="font-semibold text-foreground">{lessonsPlaced}/{totalLessons}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-background/60 border border-border/50">
+            <XCircle className={`w-3 h-3 ${hardV > 0 ? 'text-red-500' : 'text-emerald-500'}`} />
+            <div>
+              <p className="text-muted-foreground leading-none">Hard</p>
+              <p className={`font-semibold ${hardV > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{hardV}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-background/60 border border-border/50">
+            <Info className={`w-3 h-3 ${softV > 0 ? 'text-amber-500' : 'text-emerald-500'}`} />
+            <div>
+              <p className="text-muted-foreground leading-none">Soft</p>
+              <p className={`font-semibold ${softV > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{softV}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-background/60 border border-border/50">
+            <Clock className="w-3 h-3 text-slate-500" />
+            <div>
+              <p className="text-muted-foreground leading-none">Time</p>
+              <p className="font-semibold text-foreground">{timeSec.toFixed(1)}s</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Violation Details (expandable) */}
+        {violations.length > 0 && (
+          <div className="mt-3">
+            <button
+              onClick={() => setShowViolations(!showViolations)}
+              className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showViolations ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              {violations.length} violation{violations.length !== 1 ? "s" : ""} details
+            </button>
+            {showViolations && (
+              <div className="mt-2 space-y-1 max-h-40 overflow-y-auto pr-1">
+                {hardViolations.length > 0 && (
+                  <>
+                    {hardViolations.map((v, i) => (
+                      <div key={`hv-${i}`} className="flex items-start gap-1.5 text-[11px] px-2 py-1 rounded bg-red-50/60 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30">
+                        <XCircle className="w-3 h-3 text-red-400 mt-px shrink-0" />
+                        <span className="text-red-700 dark:text-red-300">{v.description}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+                {softViolations.length > 0 && (
+                  <>
+                    {softViolations.map((v, i) => (
+                      <div key={`sv-${i}`} className="flex items-start gap-1.5 text-[11px] px-2 py-1 rounded bg-amber-50/60 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30">
+                        <AlertTriangle className="w-3 h-3 text-amber-400 mt-px shrink-0" />
+                        <span className="text-amber-700 dark:text-amber-300">{v.description}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {gaGens != null && (
+          <p className="text-[10px] text-muted-foreground mt-2">
+            Completed {gaGens.toLocaleString()} generations
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TimetableView() {
   const {
     teachers,
@@ -341,9 +581,10 @@ function TimetableView() {
 
     setIsGenerating(false);
     if (generation.status === "done") {
+      const pct = generation.qualityPct ?? (generation.fitness ? Math.min(100, generation.fitness / 1000) : 0);
       toast.success(
-        `Generated. Fitness: ${generation.timetable?.fitness?.toFixed(0)}. ` +
-        `Time: ${generation.timetable?.generation_time_seconds?.toFixed(2)}s.`,
+        `Timetable generated! Quality: ${pct.toFixed(1)}% · ` +
+        `${generation.timetable?.generation_time_seconds?.toFixed(1)}s`,
       );
     } else if (generation.status === "failed") {
       toast.error(generation.error || "Generation failed.");
@@ -845,17 +1086,7 @@ function TimetableView() {
         </div>
 
         {generation.status !== "idle" && (
-          <div className={`px-4 py-2.5 rounded-lg border text-sm ${
-            generation.status === "done"
-              ? "border-green-200 bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-200"
-              : generation.status === "failed"
-                ? "border-red-200 bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200"
-                : "border-blue-200 bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-200"
-          }`}>
-            {generation.status === "running" && "Generating timetable..."}
-            {generation.status === "done" && `Done. Fitness ${generation.timetable?.fitness?.toFixed(0)}. ${generation.timetable?.generation_time_seconds?.toFixed(2)}s. ${localEntries.length} scheduled entries.`}
-            {generation.status === "failed" && generation.error}
-          </div>
+          <GenerationResultCards generation={generation} localEntries={localEntries} />
         )}
 
         {localEntries.length > 0 ? (

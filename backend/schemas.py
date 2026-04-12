@@ -238,6 +238,11 @@ class GenerateResponse(BaseModel):
     soft_violations: int
     generations: int
     time_ms: int
+    lessons_placed: int = 0
+    total_lessons: int = 0
+    preflight_ok: bool = True
+    preflight_errors: List[str] = []
+    preflight_warnings: List[str] = []
     violation_details: List[ViolationDetail] = []
     timetable: dict = {}       # expanded timetable grid
 

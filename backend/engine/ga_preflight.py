@@ -299,6 +299,10 @@ def hill_climb(
                 ga.start_period, gb.start_period = gb.start_period, ga.start_period
                 chr_.dirty = True
 
+                # Save violation counts before trial evaluation
+                prev_hard = chr_.hard_violations
+                prev_soft = chr_.soft_violations
+
                 new_fitness = evaluate(chr_, data, cs)
 
                 if new_fitness > current_fitness + 0.01:
@@ -309,9 +313,11 @@ def hill_climb(
                         print(f"    HC swap {swaps}: fitness {new_fitness:.1f}")
                     break   # restart outer loop
                 else:
-                    # Revert
+                    # Revert genes AND violation counts
                     ga.day, gb.day = gb.day, ga.day
                     ga.start_period, gb.start_period = gb.start_period, ga.start_period
+                    chr_.hard_violations = prev_hard
+                    chr_.soft_violations = prev_soft
                     chr_.dirty = False
 
             if improved:

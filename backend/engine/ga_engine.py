@@ -351,7 +351,10 @@ class GAEngine:
                 print(f"  Hill climbing: {swaps} improvements, "
                       f"fitness {pre_hc:.1f} → {best_chr.fitness:.1f}")
 
-        # ── Step 5: Gather violation details ─────────────────────────────────
+        # ── Step 5: Final re-evaluate to ensure violation counts are accurate ──
+        best_chr.fitness = evaluate(best_chr, data, cs)
+
+        # ── Step 6: Gather violation details ─────────────────────────────────
         violation_details = get_violation_details(best_chr, data, cs)
 
         return GAResult(

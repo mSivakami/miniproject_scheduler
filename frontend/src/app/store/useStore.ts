@@ -288,14 +288,29 @@ export interface TimetableEntry {
   room_ids: string[];
 }
 
+export interface ViolationDetail {
+  type: string;
+  description: string;
+  block_id: string;
+}
+
 export interface GenerationState {
   status: 'idle' | 'running' | 'done' | 'failed';
   error: string | null;
   jobId: string | null;
   fitness: number | null;
+  qualityPct: number | null;
   hardViolations: number | null;
   softViolations: number | null;
   generationTimeSec: number | null;
+  lessonsPlaced: number | null;
+  totalLessons: number | null;
+  preflightOk: boolean | null;
+  preflightErrors: string[];
+  preflightWarnings: string[];
+  violationDetails: ViolationDetail[];
+  gaGenerations: number | null;
+  gaStatus: string | null;
   timetable: {
     timetable_id: string;
     fitness: number;
@@ -591,8 +606,13 @@ export const sampleClassrooms = (): Classroom[] => [
 
 const emptyGeneration: GenerationState = {
   status: 'idle', error: null, jobId: null,
-  fitness: null, hardViolations: null, softViolations: null,
-  generationTimeSec: null, timetable: null,
+  fitness: null, qualityPct: null,
+  hardViolations: null, softViolations: null,
+  generationTimeSec: null,
+  lessonsPlaced: null, totalLessons: null,
+  preflightOk: null, preflightErrors: [], preflightWarnings: [],
+  violationDetails: [], gaGenerations: null, gaStatus: null,
+  timetable: null,
 };
 
 export const useStore = create<AppState>()(
@@ -662,9 +682,20 @@ export const useStore = create<AppState>()(
               generation: {
                 status: 'done', error: null, jobId: ttId,
                 fitness: result.fitness,
+                qualityPct: result.quality_pct,
                 hardViolations: result.hard_violations,
                 softViolations: result.soft_violations,
                 generationTimeSec: result.time_ms / 1000,
+                lessonsPlaced: result.lessons_placed,
+                totalLessons: result.total_lessons,
+                preflightOk: result.preflight_ok,
+                preflightErrors: result.preflight_errors ?? [],
+                preflightWarnings: result.preflight_warnings ?? [],
+                violationDetails: (result.violation_details ?? []).map(v => ({
+                  type: v.type, description: v.description, block_id: v.block_id ?? '',
+                })),
+                gaGenerations: result.generations,
+                gaStatus: result.status,
                 timetable: {
                   timetable_id: ttId, fitness: result.fitness,
                   entries, generation_time_seconds: result.time_ms / 1000,
@@ -692,8 +723,13 @@ export const useStore = create<AppState>()(
             generation: {
               status: 'done', error: null, jobId: result.timetableId,
               fitness: result.fitness,
+              qualityPct: Math.min(100, result.fitness / 1000),
               hardViolations: null, softViolations: null,
               generationTimeSec: result.generationTime,
+              lessonsPlaced: result.entries.length,
+              totalLessons: result.entries.length,
+              preflightOk: true, preflightErrors: [], preflightWarnings: [],
+              violationDetails: [], gaGenerations: null, gaStatus: 'local',
               timetable: {
                 timetable_id: result.timetableId, fitness: result.fitness,
                 entries: result.entries, generation_time_seconds: result.generationTime,
@@ -726,9 +762,18 @@ export const useStore = create<AppState>()(
           error: null,
           jobId: timetable.timetable_id,
           fitness: timetable.fitness,
+          qualityPct: null,
           hardViolations: null,
           softViolations: null,
           generationTimeSec: timetable.generation_time_seconds,
+          lessonsPlaced: null,
+          totalLessons: null,
+          preflightOk: null,
+          preflightErrors: [],
+          preflightWarnings: [],
+          violationDetails: [],
+          gaGenerations: null,
+          gaStatus: null,
           timetable,
         } : emptyGeneration,
       }),

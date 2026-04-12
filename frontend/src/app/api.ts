@@ -84,6 +84,7 @@ export interface RoomOut {
 export interface ClassroomOut {
   id: string;
   name: string;
+  short_name: string | null;
   capacity: number;
 }
 
@@ -146,6 +147,11 @@ export interface GenerateResponse {
   soft_violations: number;
   generations: number;
   time_ms: number;
+  lessons_placed: number;
+  total_lessons: number;
+  preflight_ok: boolean;
+  preflight_errors: string[];
+  preflight_warnings: string[];
   violation_details: ViolationDetailOut[];
   timetable: Record<string, unknown>;
 }

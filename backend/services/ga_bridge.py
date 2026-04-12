@@ -285,6 +285,19 @@ def run_ga_from_db(institution, teachers, subjects, rooms, classrooms, lesson_bl
     # Build expanded timetable dict
     tt_dict = _expand_timetable(timetable, data, inst_settings)
 
+    # Count lessons placed (non-None cells in class views, excluding continuations)
+    lessons_placed = 0
+    if tt_dict.get("class_views"):
+        seen_blocks = set()
+        for cv in tt_dict["class_views"].values():
+            for row in cv.get("grid", []):
+                for cell in row:
+                    if cell and cell.get("block_id") and not cell.get("is_continuation"):
+                        seen_blocks.add(cell["block_id"])
+        lessons_placed = len(seen_blocks)
+
+    total_lessons = sum(b.count for b in ga_blocks)
+
     return {
         "status": result.status,
         "fitness": result.fitness,
@@ -293,6 +306,11 @@ def run_ga_from_db(institution, teachers, subjects, rooms, classrooms, lesson_bl
         "soft_violations": result.soft_violations,
         "generations": result.generations,
         "time_ms": result.time_ms,
+        "lessons_placed": lessons_placed,
+        "total_lessons": total_lessons,
+        "preflight_ok": result.preflight_ok,
+        "preflight_errors": result.preflight_errors,
+        "preflight_warnings": result.preflight_warnings,
         "violation_details": [
             {"type": v["type"], "description": v["description"], "block_id": v.get("block_id", "")}
             for v in (result.violation_details or [])
