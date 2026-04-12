@@ -12,6 +12,7 @@ import { PageWrapper } from "../components/PageWrapper";
 import { useStore, Session, Lesson } from "../store/useStore";
 import type { Subject, Teacher, Class, Classroom } from "../store/useStore";
 import { toast } from "sonner";
+import { cn } from "../components/ui/utils";
 
 export function Lessons() {
   const { 
@@ -44,6 +45,11 @@ export function Lessons() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Search states for selection pools
+  const [teacherSearch, setTeacherSearch] = useState("");
+  const [classSearch, setClassSearch] = useState("");
+  const [roomSearch, setRoomSearch] = useState("");
 
   const numberOfDays = parseInt(settings.numberOfDays);
   const periodsPerDay = parseInt(settings.periodsPerDay);
@@ -280,6 +286,30 @@ export function Lessons() {
     return ids.map(id => items.find(item => item.id === id)?.short || '?').join(', ');
   };
 
+  // Helper for sorting selected items to top within search results
+  const getSortedOptions = <T extends { id: string; name: string }>(
+    items: T[],
+    selectedIds: string[],
+    search: string
+  ) => {
+    const searchLower = search.toLowerCase();
+
+    // First, filter by search (but keep selected items visible regardless of search if it helps UX, 
+    // though usually better to just filter everything)
+    const filtered = items.filter(item =>
+      item.name.toLowerCase().includes(searchLower)
+    );
+
+    // Then sort: Selected items first, then by name
+    return [...filtered].sort((a, b) => {
+      const aSelected = selectedIds.includes(a.id);
+      const bSelected = selectedIds.includes(b.id);
+      if (aSelected && !bSelected) return -1;
+      if (!aSelected && bSelected) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  };
+
   return (
     <PageWrapper>
       <div className="flex-1 flex flex-col p-8 gap-6">
@@ -448,58 +478,100 @@ export function Lessons() {
 
             {/* Teachers Multi-Select */}
             <div className="space-y-2">
-              <Label>Teachers * (Select one or more)</Label>
-              <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
-                {teachers.map(teacher => (
-                  <div key={teacher.id} className="flex items-center gap-2 py-1">
+              <div className="flex items-center justify-between">
+                <Label>Teachers *</Label>
+                <div className="relative w-48">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search teachers..." 
+                    value={teacherSearch}
+                    onChange={(e) => setTeacherSearch(e.target.value)}
+                    className="h-7 pl-7 text-xs"
+                  />
+                </div>
+              </div>
+              <div className="border rounded-lg p-3 max-h-32 overflow-y-auto space-y-1">
+                {getSortedOptions(teachers, newLesson.teacher_ids, teacherSearch).map(teacher => (
+                  <div key={teacher.id} className="flex items-center gap-2 py-0.5">
                     <Checkbox
                       checked={newLesson.teacher_ids.includes(teacher.id)}
                       onCheckedChange={() => toggleTeacher(teacher.id)}
                     />
-                    <span className="text-sm">{teacher.name}</span>
+                    <span className={cn(
+                      "text-sm",
+                      newLesson.teacher_ids.includes(teacher.id) ? "font-semibold text-blue-600" : ""
+                    )}>{teacher.name}</span>
                   </div>
                 ))}
               </div>
               {newLesson.teacher_ids.length > 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">Selected: {getNames(newLesson.teacher_ids, teachers)}</p>
+                <p className="text-[10px] text-gray-500 italic">Selected: {getNames(newLesson.teacher_ids, teachers)}</p>
               )}
             </div>
 
             {/* Classes Multi-Select */}
             <div className="space-y-2">
-              <Label>Classes * (Select one or more)</Label>
-              <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
-                {classes.map(cls => (
-                  <div key={cls.id} className="flex items-center gap-2 py-1">
+              <div className="flex items-center justify-between">
+                <Label>Classes *</Label>
+                <div className="relative w-48">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search classes..." 
+                    value={classSearch}
+                    onChange={(e) => setClassSearch(e.target.value)}
+                    className="h-7 pl-7 text-xs"
+                  />
+                </div>
+              </div>
+              <div className="border rounded-lg p-3 max-h-32 overflow-y-auto space-y-1">
+                {getSortedOptions(classes, newLesson.class_ids, classSearch).map(cls => (
+                  <div key={cls.id} className="flex items-center gap-2 py-0.5">
                     <Checkbox
                       checked={newLesson.class_ids.includes(cls.id)}
                       onCheckedChange={() => toggleClass(cls.id)}
                     />
-                    <span className="text-sm">{cls.name}</span>
+                    <span className={cn(
+                      "text-sm",
+                      newLesson.class_ids.includes(cls.id) ? "font-semibold text-blue-600" : ""
+                    )}>{cls.name}</span>
                   </div>
                 ))}
               </div>
               {newLesson.class_ids.length > 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">Selected: {getNames(newLesson.class_ids, classes)}</p>
+                <p className="text-[10px] text-gray-500 italic">Selected: {getNames(newLesson.class_ids, classes)}</p>
               )}
             </div>
 
             {/* Rooms Multi-Select */}
             <div className="space-y-2">
-              <Label>Rooms * (Select one or more)</Label>
-              <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
-                {classrooms.map(room => (
-                  <div key={room.id} className="flex items-center gap-2 py-1">
+              <div className="flex items-center justify-between">
+                <Label>Rooms *</Label>
+                <div className="relative w-48">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search rooms..." 
+                    value={roomSearch}
+                    onChange={(e) => setRoomSearch(e.target.value)}
+                    className="h-7 pl-7 text-xs"
+                  />
+                </div>
+              </div>
+              <div className="border rounded-lg p-3 max-h-32 overflow-y-auto space-y-1">
+                {getSortedOptions(classrooms, newLesson.room_ids, roomSearch).map(room => (
+                  <div key={room.id} className="flex items-center gap-2 py-0.5">
                     <Checkbox
                       checked={newLesson.room_ids.includes(room.id)}
                       onCheckedChange={() => toggleRoom(room.id)}
                     />
-                    <span className="text-sm">{room.name}</span>
+                    <span className={cn(
+                      "text-sm",
+                      newLesson.room_ids.includes(room.id) ? "font-semibold text-blue-600" : ""
+                    )}>{room.name}</span>
                   </div>
                 ))}
               </div>
               {newLesson.room_ids.length > 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">Selected: {getNames(newLesson.room_ids, classrooms)}</p>
+                <p className="text-[10px] text-gray-500 italic">Selected: {getNames(newLesson.room_ids, classrooms)}</p>
               )}
             </div>
 
@@ -649,50 +721,101 @@ export function Lessons() {
 
               {/* Teachers Multi-Select */}
               <div className="space-y-2">
-                <Label>Teachers *</Label>
-                <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
-                  {teachers.map(teacher => (
-                    <div key={teacher.id} className="flex items-center gap-2 py-1">
+                <div className="flex items-center justify-between">
+                  <Label>Teachers *</Label>
+                  <div className="relative w-48">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                    <Input 
+                      placeholder="Search teachers..." 
+                      value={teacherSearch}
+                      onChange={(e) => setTeacherSearch(e.target.value)}
+                      className="h-7 pl-7 text-xs"
+                    />
+                  </div>
+                </div>
+                <div className="border rounded-lg p-3 max-h-32 overflow-y-auto space-y-1">
+                  {getSortedOptions(teachers, editingLesson.teacher_ids, teacherSearch).map(teacher => (
+                    <div key={teacher.id} className="flex items-center gap-2 py-0.5">
                       <Checkbox
                         checked={editingLesson.teacher_ids.includes(teacher.id)}
                         onCheckedChange={() => toggleTeacher(teacher.id, true)}
                       />
-                      <span className="text-sm">{teacher.name}</span>
+                      <span className={cn(
+                        "text-sm",
+                        editingLesson.teacher_ids.includes(teacher.id) ? "font-semibold text-blue-600" : ""
+                      )}>{teacher.name}</span>
                     </div>
                   ))}
                 </div>
+                {editingLesson.teacher_ids.length > 0 && (
+                  <p className="text-[10px] text-gray-500 italic">Selected: {getNames(editingLesson.teacher_ids, teachers)}</p>
+                )}
               </div>
 
               {/* Classes Multi-Select */}
               <div className="space-y-2">
-                <Label>Classes *</Label>
-                <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
-                  {classes.map(cls => (
-                    <div key={cls.id} className="flex items-center gap-2 py-1">
+                <div className="flex items-center justify-between">
+                  <Label>Classes *</Label>
+                  <div className="relative w-48">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                    <Input 
+                      placeholder="Search classes..." 
+                      value={classSearch}
+                      onChange={(e) => setClassSearch(e.target.value)}
+                      className="h-7 pl-7 text-xs"
+                    />
+                  </div>
+                </div>
+                <div className="border rounded-lg p-3 max-h-32 overflow-y-auto space-y-1">
+                  {getSortedOptions(classes, editingLesson.class_ids, classSearch).map(cls => (
+                    <div key={cls.id} className="flex items-center gap-2 py-0.5">
                       <Checkbox
                         checked={editingLesson.class_ids.includes(cls.id)}
                         onCheckedChange={() => toggleClass(cls.id, true)}
                       />
-                      <span className="text-sm">{cls.name}</span>
+                      <span className={cn(
+                        "text-sm",
+                        editingLesson.class_ids.includes(cls.id) ? "font-semibold text-blue-600" : ""
+                      )}>{cls.name}</span>
                     </div>
                   ))}
                 </div>
+                {editingLesson.class_ids.length > 0 && (
+                  <p className="text-[10px] text-gray-500 italic">Selected: {getNames(editingLesson.class_ids, classes)}</p>
+                )}
               </div>
 
               {/* Rooms Multi-Select */}
               <div className="space-y-2">
-                <Label>Rooms *</Label>
-                <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
-                  {classrooms.map(room => (
-                    <div key={room.id} className="flex items-center gap-2 py-1">
+                <div className="flex items-center justify-between">
+                  <Label>Rooms *</Label>
+                  <div className="relative w-48">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                    <Input 
+                      placeholder="Search rooms..." 
+                      value={roomSearch}
+                      onChange={(e) => setRoomSearch(e.target.value)}
+                      className="h-7 pl-7 text-xs"
+                    />
+                  </div>
+                </div>
+                <div className="border rounded-lg p-3 max-h-32 overflow-y-auto space-y-1">
+                  {getSortedOptions(classrooms, editingLesson.room_ids, roomSearch).map(room => (
+                    <div key={room.id} className="flex items-center gap-2 py-0.5">
                       <Checkbox
                         checked={editingLesson.room_ids.includes(room.id)}
                         onCheckedChange={() => toggleRoom(room.id, true)}
                       />
-                      <span className="text-sm">{room.name}</span>
+                      <span className={cn(
+                        "text-sm",
+                        editingLesson.room_ids.includes(room.id) ? "font-semibold text-blue-600" : ""
+                      )}>{room.name}</span>
                     </div>
                   ))}
                 </div>
+                {editingLesson.room_ids.length > 0 && (
+                  <p className="text-[10px] text-gray-500 italic">Selected: {getNames(editingLesson.room_ids, classrooms)}</p>
+                )}
               </div>
 
               {/* Lock to Fixed Time */}
