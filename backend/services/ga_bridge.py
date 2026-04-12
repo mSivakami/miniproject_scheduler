@@ -224,8 +224,8 @@ def _db_to_ga_structures(institution, teachers, subjects, rooms, classrooms, les
 
 def run_ga_from_db(institution, teachers, subjects, rooms, classrooms, lesson_blocks,
                    constraint_settings=None, constraint_mask: int | None = None,
-                   max_generations=2000, population_size=300,
-                   time_limit_seconds=120, seed=None, fast_mode=False) -> dict:
+                   max_generations=600, population_size=150,
+                   time_limit_seconds=110, seed=None, fast_mode=False) -> dict:
     """
     Run the full GA pipeline using DB data.
 
@@ -253,7 +253,8 @@ def run_ga_from_db(institution, teachers, subjects, rooms, classrooms, lesson_bl
         population_size=population_size,
         max_generations=max_generations,
         time_limit_seconds=time_limit_seconds,
-        verbose=False,
+        verbose=True,
+        progress_every=10,  # Show update every 10 generations
     )
 
     if fast_mode:

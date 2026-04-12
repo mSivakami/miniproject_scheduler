@@ -55,9 +55,9 @@ class GAConfig:
     Defaults are tuned for the ChromaSchedule college timetabling problem
     with 50–100 lesson blocks and 5×8 (40-slot) grid.
     """
-    population_size:    int   = 200
+    population_size:    int   = 150
     max_generations:    int   = 2000
-    time_limit_seconds: float = 120.0
+    time_limit_seconds: float = 110.0
     elite_count:        int   = 15
     tournament_size:    int   = 5
     crossover_rate:     float = 0.85   # probability of crossover vs clone
@@ -65,14 +65,14 @@ class GAConfig:
     stagnation_limit:   int   = 200    # stop if best fitness doesn't improve
     adaptation_window:  int   = 50
 
-    # Initialization mix
-    greedy_pct:  float = 0.30
-    shuffled_pct: float = 0.40
+    # Initialization mix (100% random)
+    greedy_pct:  float = 0.0
+    shuffled_pct: float = 0.0
     # remainder = random
 
     # Hill climbing
     hill_climb_enabled:   bool = True
-    hill_climb_time_ms:   int  = 5000
+    hill_climb_time_ms:   int  = 15000
 
     # Progress reporting
     progress_every:  int  = 25   # report every N generations
@@ -208,7 +208,9 @@ class GAEngine:
         history     = [(0, population[0].fitness, population[0].hard_violations)]
 
         if cfg.verbose:
-            _log_gen(0, population[0], cfg.max_generations)
+            print(f"\n  Starting GA: pop={cfg.population_size}, max_gen={cfg.max_generations}, stagnation_limit={cfg.stagnation_limit}")
+            print(f"  {'='*70}")
+            _log_gen(0, population[0], cfg.max_generations, 0)
 
         while generation < cfg.max_generations:
             # Time check
@@ -246,7 +248,7 @@ class GAEngine:
             # Progress reporting
             if generation % cfg.progress_every == 0:
                 if cfg.verbose:
-                    _log_gen(generation, current_best, cfg.max_generations)
+                    _log_gen(generation, current_best, cfg.max_generations, stagnation)
                 history.append((generation, current_best.fitness,
                                  current_best.hard_violations))
                 if progress_callback:
@@ -388,12 +390,13 @@ def _tournament_select(
     return max(contestants, key=lambda c: c.fitness)
 
 
-def _log_gen(generation: int, best: Chromosome, max_gen: int):
+def _log_gen(generation: int, best: Chromosome, max_gen: int, stagnation: int):
     bar_len = 20
     pct     = generation / max_gen if max_gen > 0 else 0
     filled  = int(bar_len * pct)
     bar     = "#" * filled + "-" * (bar_len - filled)
     print(f"  Gen {generation:>5} [{bar}] "
           f"fit={best.fitness:>10.1f}  "
-          f"hard={best.hard_violations:>3}  "
-          f"soft={best.soft_violations:>3}")
+          f"hard={best.hard_violations:>2}  "
+          f"soft={best.soft_violations:>3}  "
+          f"stag={stagnation:>3}")

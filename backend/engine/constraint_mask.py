@@ -29,10 +29,10 @@ if TYPE_CHECKING:
 
 INTENSITY_WEIGHTS: list[list[float]] = [
     #  S1   S2   S3   S4   S5   S6   S7   S8   S9  S10   S11  lab
-    [0.3, 0.2, 0.2, 0.5, 0.2, 0.3, 0.1, 0.3, 0.2, 0.5,  0.8, 0.2],  # 00 minimal
-    [1.0, 0.8, 0.7, 2.0, 0.5, 1.2, 0.3, 1.0, 0.8, 2.0,  3.0, 0.5],  # 01 medium
-    [2.0, 1.5, 1.5, 4.0, 1.0, 2.5, 0.7, 2.0, 1.5, 4.0,  6.0, 1.0],  # 10 hard
-    [4.0, 3.0, 3.0, 8.0, 2.0, 5.0, 1.5, 4.0, 3.0, 8.0, 12.0, 2.0],  # 11 very strict
+    [0.3, 0.2, 0.2, 0.5, 0.2, 0.3, 0.5, 0.3, 0.2, 0.5,  0.8, 0.2],  # 00 minimal
+    [1.0, 0.8, 0.7, 2.0, 0.5, 1.2, 1.5, 1.0, 0.8, 2.0,  3.0, 0.5],  # 01 medium
+    [2.0, 1.5, 1.5, 4.0, 1.0, 2.5, 2.5, 2.0, 1.5, 4.0,  6.0, 1.0],  # 10 hard
+    [4.0, 3.0, 3.0, 8.0, 2.0, 5.0, 4.0, 4.0, 3.0, 8.0, 12.0, 2.0],  # 11 very strict
 ]
 
 LEVEL_NAMES = ["minimal", "medium", "hard", "very strict"]
@@ -57,7 +57,7 @@ _LDG_VALUES = [0, 1, 2, 3]   # last_day_gap_days lookup
 
 PRESETS: dict[str, dict] = {
     "default": {
-        "on":        [True, True, True, True, True, True, False, True, True, True, True, False],
+        "on":        [True, True, True, True, True, True, True, True, True, True, True, False],
         "intensity": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         "mcp": 1,  # 3 periods
         "ldg": 1,  # 1 day

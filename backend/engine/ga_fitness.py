@@ -59,6 +59,86 @@ from ga_problem import ProblemData, FlatBlock
 BASE_FITNESS   = 100_000.0
 HARD_PENALTY   = 1_000.0
 SOFT_BASE      =     50.0
+ 
+ 
+# ──────────────────────────────────────────────────────────────────────────────
+# Evaluation Cache
+# ──────────────────────────────────────────────────────────────────────────────
+ 
+@dataclass
+class _CacheEntry:
+    fitness:         float
+    hard_violations: int
+    soft_violations: int
+ 
+ 
+class EvaluationCache:
+    """
+    Simple dict-based LRU-style cache for chromosome fitness results.
+ 
+    Key  : tuple of (block_idx, occurrence, day, start_period) for every gene,
+           plus a frozen representation of the active ConstraintSettings so
+           that changing constraints correctly invalidates all entries.
+    Value: _CacheEntry with fitness, hard_violations, soft_violations.
+    """
+ 
+    def __init__(self, maxsize: int = 4096):
+        self._maxsize = maxsize
+        self._store: dict = {}          # key → _CacheEntry
+        self._order: list = []          # insertion-order list for eviction
+        self.hits   = 0
+        self.misses = 0
+ 
+    def _make_key(self, chr_: "Chromosome", cs: "ConstraintSettings") -> tuple:
+        genes_key = tuple(
+            (g.block_idx, g.occurrence, g.day, g.start_period)
+            for g in chr_.genes
+        )
+        # Freeze the constraint settings that affect the score
+        cs_key = (
+            cs.H1, cs.H2, cs.H3, cs.H4, cs.H7, cs.H8, cs.H9,
+            cs.S1, cs.S1_weight,
+            cs.S2, cs.S2_weight,
+            cs.S3, cs.S3_weight,
+            cs.S4, cs.S4_weight,
+            cs.S5, cs.S5_weight,
+            cs.S6, cs.S6_weight,
+            cs.S7, cs.S7_weight,
+            cs.S8, cs.S8_weight,
+            cs.S9, cs.S9_weight,
+            cs.S10, cs.S10_weight,
+            cs.S11, cs.S11_weight,
+            cs.avoid_morning_lab, cs.avoid_morning_lab_weight,
+            cs.last_day_gap_days, cs.max_consecutive_periods,
+        )
+        return (genes_key, cs_key)
+ 
+    def get(self, chr_: "Chromosome", cs: "ConstraintSettings"):
+        key = self._make_key(chr_, cs)
+        entry = self._store.get(key)
+        if entry is not None:
+            self.hits += 1
+        else:
+            self.misses += 1
+        return entry
+ 
+    def put(self, chr_: "Chromosome", cs: "ConstraintSettings",
+            fitness: float, hard: int, soft: int) -> None:
+        key = self._make_key(chr_, cs)
+        if key not in self._store:
+            if len(self._store) >= self._maxsize:
+                oldest = self._order.pop(0)
+                self._store.pop(oldest, None)
+            self._order.append(key)
+        self._store[key] = _CacheEntry(fitness, hard, soft)
+ 
+    def clear(self) -> None:
+        self._store.clear()
+        self._order.clear()
+        self.hits = self.misses = 0
+ 
+ 
+_default_cache = EvaluationCache()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -87,7 +167,7 @@ class ConstraintSettings:
     S4: bool  = True;  S4_weight: float = 2.0   # no gaps in class daily schedule (strong — UX critical)
     S5: bool  = True;  S5_weight: float = 0.5   # max consecutive periods
     S6: bool  = True;  S6_weight: float = 1.2   # subject distribution across week (stronger)
-    S7: bool  = False; S7_weight: float = 0.3   # isolated gaps (expensive, off by default)
+    S7: bool  = True;  S7_weight: float = 1.5   # equal first-period distribution across teachers
     S8: bool  = True;  S8_weight: float = 1.0   # consecutive distinct blocks for teacher
     S9: bool  = True;  S9_weight: float = 0.8   # prefer gaps on last day(s) of week — pack Mon–Thu
     S10: bool = True;  S10_weight: float = 2.0  # max 1 lab per class per day
@@ -139,6 +219,7 @@ class EvalState:
         "class_lab_daily",   # flat list, index = ci * days + day
         "subject_day_class", # (subject_id, day, class_idx) → count
         "teacher_slots",     # flat list, index = ti * total_slots + slot
+        "teacher_first_periods", # count of first-period assignments per teacher
         "_days",
         "_total_slots",
     )
@@ -156,6 +237,7 @@ class EvalState:
         self.subject_day_class: dict = {}
         # Flat array: teacher_slots[ti * total_slots + slot] = block_idx or -1
         self.teacher_slots = [-1] * (n_teachers * total_slots)
+        self.teacher_first_periods = [0] * n_teachers
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -223,10 +305,27 @@ class Chromosome:
 # Core Fitness Evaluation
 # ──────────────────────────────────────────────────────────────────────────────
 
-def evaluate(chr_: Chromosome, data: ProblemData, cs: ConstraintSettings) -> float:
+def evaluate(chr_: Chromosome, data: ProblemData, cs: ConstraintSettings, cache=None) -> float:
     """
     Evaluate the fitness of a chromosome.
-
+ 
+    Parameters
+    ----------
+    chr_  : Chromosome to evaluate.
+    data  : Immutable problem data.
+    cs    : Active constraint settings.
+    cache : Optional EvaluationCache.  Pass the same instance across calls
+            so that identical gene sequences are served from the cache.
+    """
+    _cache = cache if cache is not None else _default_cache
+ 
+    if _cache is not None and not chr_.dirty:
+        entry = _cache.get(chr_, cs)
+        if entry is not None:
+            chr_.hard_violations = entry.hard_violations
+            chr_.soft_violations = entry.soft_violations
+            return entry.fitness
+    """
     Returns the fitness score (higher = better).
     Also updates chr_.hard_violations and chr_.soft_violations in-place.
 
@@ -385,6 +484,11 @@ def evaluate(chr_: Chromosome, data: ProblemData, cs: ConstraintSettings) -> flo
                     penalty    += _SOFT * cs.S3_weight
                     soft_count += 1
                 subject_day_class[key] = cnt + 1
+        
+        # ── S7: Accumulate first-period starts for teachers ───────────────────
+        if cs.S7 and sp == 0:
+            for ti in t_indices:
+                state.teacher_first_periods[ti] += 1
 
     # ── S1: Teacher daily overload ─────────────────────────────────────────────
     if cs.S1:
@@ -408,9 +512,9 @@ def evaluate(chr_: Chromosome, data: ProblemData, cs: ConstraintSettings) -> flo
         penalty    += p
         soft_count += sc
 
-    # ── S7: Isolated gaps ─────────────────────────────────────────────────────
+    # ── S7: First-period distribution ─────────────────────────────────────────
     if cs.S7:
-        p, sc = _check_isolated_gaps(state, data, cs)
+        p, sc = _check_first_period_distribution(state, data, cs)
         penalty    += p
         soft_count += sc
 
@@ -462,8 +566,12 @@ def evaluate(chr_: Chromosome, data: ProblemData, cs: ConstraintSettings) -> flo
     chr_.hard_violations = hard_count
     chr_.soft_violations = soft_count
     chr_.dirty = False
-
-    return BASE_FITNESS - penalty
+ 
+    fitness = BASE_FITNESS - penalty
+    if _cache is not None:
+        _cache.put(chr_, cs, fitness, hard_count, soft_count)
+ 
+    return fitness
 
 
 def _check_consecutive(state: EvalState, data: ProblemData, cs: ConstraintSettings):
@@ -498,17 +606,54 @@ def _check_consecutive(state: EvalState, data: ProblemData, cs: ConstraintSettin
     return penalty, count
 
 
+def _check_first_period_distribution(state: EvalState, data: ProblemData, cs: ConstraintSettings):
+    """
+    S7: Penalize unbalanced first-period assignments across teachers.
+    Ensures that no single teacher gets stuck with all early starts.
+ 
+    Formula:
+      - Consider only teachers with at least one transition assignment.
+      - Calculate mean first-period count.
+      - Penalty = sum( (actual - mean)^2 ) * SOFT_BASE * weight
+    """
+    total_fp = sum(state.teacher_first_periods)
+    if total_fp == 0:
+        return 0.0, 0
+ 
+    counts = []
+    # Only consider teachers who have AT LEAST ONE lesson assigned in total
+    # (prevents zero-lesson teachers from skewing the mean down)
+    for ti in range(len(data.teachers)):
+        mask = state.teacher_used[ti]
+        if mask > 0:
+            counts.append(state.teacher_first_periods[ti])
+ 
+    if not counts:
+        return 0.0, 0
+ 
+    n_active = len(counts)
+    mean = total_fp / n_active
+ 
+    # Square deviation for smooth gradient
+    variance_sum = sum((c - mean)**2 for c in counts)
+ 
+    penalty = SOFT_BASE * cs.S7_weight * variance_sum
+    # Report a "violation" if any teacher is > 1.0 away from mean
+    infractions = sum(1 for c in counts if abs(c - mean) > 1.0)
+ 
+    return penalty, infractions
+
 def _check_distribution(chr_: Chromosome, data: ProblemData, cs: ConstraintSettings):
     """
     S6: Penalize uneven distribution of subject occurrences across the week.
 
-    For each (subject, class) pair with ≥2 occurrences, we compute the
+    For each (subject, class) pair with >=2 occurrences, we compute the
     variance of per-day counts and penalise proportionally.
 
     Threshold tightened to 0.2 (was 0.5) so that even mild clustering is
     caught early.  Weight is also higher in ConstraintSettings (1.2 vs 0.4).
 
-    Additionally, if any single day has ≥2 occurrences of the same subject
+    Additionally, if any single day has >=2 occurrences of the same subject
     for the same class, apply a flat extra penalty per extra occurrence to
     drive the GA towards true spread.
     """
@@ -807,6 +952,11 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
                 if cnt >= 1:
                     add("S3", f"{block.subject_name} twice on Day{day+1} for class {data.classes[ci].id}", block.id)
                 subject_day_class[key] = cnt + 1
+ 
+        # S7: track first-period assignments
+        if cs.S7 and sp == 0:
+            for ti in t_indices:
+                state.teacher_first_periods[ti] += 1
 
         if cs.S1:
             for ti in t_indices:
@@ -863,18 +1013,22 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
                 add("S6", f"Subject {sid} for class {data.classes[ci].id} "
                           f"unevenly distributed (variance={variance:.2f})")
 
-    # S7
+    # S7: First-period distribution details
     if cs.S7:
-        for ti in range(n_teachers):
-            mask = teacher_used[ti]
-            for d in range(days):
-                base = d * periods
-                for p in range(1, periods - 1):
-                    slot = base + p
-                    if not (mask & (1 << slot)):
-                        if (mask & (1 << (slot - 1))) and (mask & (1 << (slot + 1))):
-                            add("S7", f"Teacher {teachers[ti].id} isolated gap "
-                                      f"on Day{d+1} P{p+1}")
+        total_fp = sum(state.teacher_first_periods)
+        active_counts = []
+        for ti in range(len(data.teachers)):
+            if state.teacher_used[ti] > 0:
+                active_counts.append((ti, state.teacher_first_periods[ti]))
+ 
+        if active_counts:
+            mean = total_fp / len(active_counts)
+            for ti, count in active_counts:
+                deviation = count - mean
+                if abs(deviation) > 1.0:
+                    status = "overloaded" if deviation > 0 else "underloaded"
+                    add("S7", f"Teacher {data.teachers[ti].id} is {status} with first periods "
+                               f"({count} vs mean {mean:.1f})")
 
     # S4
     if cs.S4:

@@ -275,9 +275,9 @@ def initialize_population(
     if rng is None:
         rng = random.Random()
 
-    n_greedy   = max(1, int(population_size * greedy_pct))
-    n_shuffled = max(1, int(population_size * shuffled_pct))
-    n_random   = max(1, population_size - n_greedy - n_shuffled)
+    n_greedy   = int(population_size * greedy_pct)
+    n_shuffled = int(population_size * shuffled_pct)
+    n_random   = population_size - n_greedy - n_shuffled
 
     population: List[Chromosome] = []
 
