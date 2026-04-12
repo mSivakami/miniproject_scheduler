@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Archive, RotateCcw, Trash2, Clock, Plus, FileDown, Loader2 } from "lucide-react";
+import { Archive, RotateCcw, Trash2, Clock, Plus, FileDown, Loader2, Pencil } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/dialog";
 import { PageWrapper } from "../components/PageWrapper";
 import { useStore, type TimetableEntry, type AppSettings } from "../store/useStore";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { api, type TimetableDetailOut, type TimetableOut } from "../api";
 
@@ -106,10 +108,11 @@ function persistLocalSnapshots(items: LocalSavedTimetable[]) {
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
 }
 
-function formatDate(iso: string) {
-  const d = new Date(iso);
+  function formatDate(iso: string) {
+  const raw = iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z";
+  const d = new Date(raw);
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) +
-    " - " + d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+    " - " + d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
 function parseRestorableTimetable(rawJson: string): RestorableTimetable {
@@ -169,19 +172,21 @@ function useLocalSavedTimetables() {
 
   const remove = (id: string) => persist(saved.filter(item => item.id !== id));
   const clear = () => persist([]);
+  const rename = (id: string, name: string) => persist(saved.map(s => s.id === id ? { ...s, name } : s));
 
-  return { saved, save, remove, clear };
+  return { saved, save, remove, clear, rename };
 }
 
 export function SavedTimetables() {
-  const { generation, restoreGeneration, backendAvailable, settings, updateSettings, teachers, classes, classrooms } = useStore();  
-  const { saved: localSaved, save: saveLocal, remove: removeLocal, clear: clearLocal } = useLocalSavedTimetables();
+  const { generation, restoreGeneration, backendAvailable, settings, updateSettings, teachers, classes, classrooms } = useStore();
+  const { saved: localSaved, remove: removeLocal, clear: clearLocal, rename: renameLocal } = useLocalSavedTimetables();
   const [serverSaved, setServerSaved] = useState<TimetableOut[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);  
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [restoreId, setRestoreId] = useState<string | null>(null);
   const [clearOpen, setClearOpen] = useState(false);
+  const [renameId, setRenameId] = useState<string | null>(null);
+  const [renameName, setRenameName] = useState("");
 
   const usingServer = backendAvailable;
   const currentTimetable = generation?.timetable;
@@ -248,47 +253,7 @@ export function SavedTimetables() {
     return detail;
   };
 
-  const handleSaveSnapshot = async () => {
-    if (!currentTimetable) return;
-
-    const snapshotPayload = {
-      ...currentTimetable,
-      grid_settings: {
-        numberOfDays: settings.numberOfDays,
-        periodsPerDay: settings.periodsPerDay,
-        breakAfterPeriod: settings.breakAfterPeriod,
-        breaks: settings.breaks,
-      },
-    };
-
-    setIsSaving(true);
-    try {
-      if (usingServer) {
-        await api.saveTimetable({
-          name: `Snapshot ${savedItems.length + 1}`,
-          timetable_json: JSON.stringify(snapshotPayload),
-          fitness_score: currentTimetable.fitness,
-          hard_violations: generation.hardViolations ?? 0,
-          soft_violations: generation.softViolations ?? 0,
-        });
-        await refreshServerSaved();
-      } else {
-        saveLocal({
-          name: `Snapshot ${savedItems.length + 1}`,
-          fitness: currentTimetable.fitness,
-          generationTime: currentTimetable.generation_time_seconds,
-          entriesCount: currentTimetable.entries.length,
-          timetableJson: JSON.stringify(snapshotPayload),
-        });
-      }
-      toast.success("Snapshot saved.");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to save snapshot.";
-      toast.error(message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  
 
   const handleRestore = async (item: DisplaySavedTimetable) => {
     try {
@@ -555,6 +520,23 @@ export function SavedTimetables() {
   };
 
   const restoreItem = savedItems.find(item => item.id === restoreId) ?? null;
+  const handleRename = async () => {
+    if (!renameId) return;
+    const name = renameName.trim();
+    if (!name) return;
+    try {
+      if (usingServer) {
+        await api.renameTimetable(renameId, name);
+        await refreshServerSaved();
+      } else {
+        renameLocal(renameId, name);
+      }
+      toast.success("Renamed.");
+      setRenameId(null);
+    } catch (err) {
+      toast.error("Failed to rename.");
+    }
+  };
 
   return (
     <PageWrapper>
@@ -604,27 +586,7 @@ export function SavedTimetables() {
           )}
         </div>
 
-        {currentTimetable && (
-          <Card className="border-dashed">
-            <CardContent className="py-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium">Current timetable ready to save</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Fitness: {currentTimetable.fitness?.toFixed(4)} - {currentTimetable.entries?.length ?? 0} entries
-                </p>
-              </div>
-              <Button
-                size="sm"
-                disabled={savedItems.length >= MAX_SAVED || isSaving}
-                onClick={handleSaveSnapshot}
-                className="gap-1.5"
-              >
-                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                Save snapshot
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        
 
         {savedItems.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 py-20 text-center">
@@ -650,9 +612,6 @@ export function SavedTimetables() {
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <Clock className="w-3 h-3 text-muted-foreground" />
                         <span className="text-xs text-muted-foreground">{formatDate(tt.savedAt)}</span>
-                        <Badge variant="secondary" className="text-xs py-0">
-                          fitness {tt.fitness?.toFixed(3)}
-                        </Badge>
                         {tt.entriesCount !== null && (
                           <span className="text-xs text-muted-foreground">{tt.entriesCount} entries</span>
                         )}
@@ -683,6 +642,14 @@ export function SavedTimetables() {
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       Load
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs"
+                      onClick={() => { setRenameId(tt.id); setRenameName(tt.name); }}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -737,6 +704,27 @@ export function SavedTimetables() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setClearOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleClearAll}>Clear all</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    <Dialog open={!!renameId} onOpenChange={() => setRenameId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename snapshot</DialogTitle>
+            <DialogDescription>Enter a new name for this saved timetable.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>Name</Label>
+            <Input
+              value={renameName}
+              onChange={e => setRenameName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleRename(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameId(null)}>Cancel</Button>
+            <Button onClick={handleRename}>Rename</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

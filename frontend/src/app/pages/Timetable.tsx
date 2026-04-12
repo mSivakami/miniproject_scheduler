@@ -4,6 +4,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { Button } from "../components/ui/button";
 import {
   AlertTriangle,
+  Archive,
   BookOpen,
   Calendar,
   CheckCircle2,
@@ -14,6 +15,7 @@ import {
   FileDown,
   GripVertical,
   Info,
+  Loader2,
   RotateCcw,
   School,
   Shield,
@@ -26,7 +28,11 @@ import {
 } from "lucide-react";
 import type { Subject, Teacher, Class, Classroom } from "../store/useStore";
 import { PageWrapper } from "../components/PageWrapper";
-import { useStore, TimetableEntry, GenerationState, ViolationDetail } from "../store/useStore";
+import { useStore, TimetableEntry, GenerationState } from "../store/useStore";
+import { api } from "../api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/dialog";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -566,7 +572,9 @@ function TimetableView() {
   const [viewMode, setViewMode] = useState<"teacher" | "class" | "classroom">("teacher");
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedEntityId, setSelectedEntityId] = useState("all");
-
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [snapshotName, setSnapshotName] = useState("");
   const numDays = parseInt(settings.numberOfDays) || 5;
   const numPeriods = parseInt(settings.periodsPerDay) || 7;
   const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].slice(0, numDays);
@@ -620,7 +628,66 @@ function TimetableView() {
     toast.success("Timetable cleared.");
   };
 
-  const timetablePrintRef = useRef<HTMLDivElement>(null);
+  const defaultSnapshotName = () =>
+    `Snapshot - ${new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`;
+
+  const handleSaveSnapshot = () => {
+    if (!generation.timetable) return;
+    setSnapshotName(defaultSnapshotName());
+    setIsSaveDialogOpen(true);
+  };
+
+  const handleConfirmSave = async () => {
+    if (!generation.timetable) return;
+    const name = snapshotName.trim() || defaultSnapshotName();
+
+    const snapshotPayload = {
+      ...generation.timetable,
+      grid_settings: {
+        numberOfDays: settings.numberOfDays,
+        periodsPerDay: settings.periodsPerDay,
+        breakAfterPeriod: settings.breakAfterPeriod,
+        breaks: settings.breaks,
+      },
+    };
+
+    setIsSaving(true);
+    try {
+      if (backendAvailable) {
+        await api.saveTimetable({
+          name,
+          timetable_json: JSON.stringify(snapshotPayload),
+          fitness_score: generation.timetable.fitness,
+          hard_violations: generation.hardViolations ?? 0,
+          soft_violations: generation.softViolations ?? 0,
+        });
+      } else {
+        const LOCAL_STORAGE_KEY = "autoscheduler_saved_timetables";
+        const existing = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
+        const newEntry = {
+          id: crypto.randomUUID(),
+          savedAt: new Date().toISOString(),
+          name,
+          fitness: generation.timetable.fitness,
+          generationTime: generation.timetable.generation_time_seconds,
+          entriesCount: generation.timetable.entries.length,
+          timetableJson: JSON.stringify(snapshotPayload),
+        };
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([newEntry, ...existing].slice(0, 5)));
+      }
+      toast.success("Snapshot saved. View it in Saved Timetables.");
+      setIsSaveDialogOpen(false);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "Failed to save snapshot.";
+      const arrowIdx = raw.indexOf("->");
+      let clean = arrowIdx !== -1 ? raw.slice(arrowIdx + 2).trim() : raw;
+      clean = clean.replace(/^\d+:\s*/, "").trim();
+      toast.error(clean);
+    }finally {
+      setIsSaving(false);
+    }
+  };
+
 
   const SUBJECT_PALETTE = [
     "#DBEAFE","#DCFCE7","#FEF9C3","#FFE4C4","#EDE9FE",
@@ -738,7 +805,6 @@ function TimetableView() {
     if (!generation.timetable) return;
 
     const colorMap = getSubjectColorMap();
-    const exportDate = new Date().toLocaleDateString("en-IN", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 
     const sections = [
       { title: "Class Timetables",   mode: "class"      as const, entities: classes,     accent: "#2563eb" },
@@ -755,20 +821,6 @@ function TimetableView() {
       </div>
     `).join("");
 
-    // Cover stats
-    const totalPeriods = localEntries.reduce((s, e) => s + e.duration, 0);
-    const stats = [
-      { label: "Classes",      value: classes.length },
-      { label: "Teachers",     value: teachers.length },
-      { label: "Rooms",        value: classrooms.length },
-      { label: "Total Periods",value: totalPeriods },
-    ];
-
-    const statsHTML = stats.map(s => `
-      <div class="stat-card">
-        <div class="stat-value">${s.value}</div>
-        <div class="stat-label">${s.label}</div>
-      </div>`).join("");
 
     const printWindow = window.open("", "_blank", "width=1280,height=900");
     if (!printWindow) { toast.error("Popup blocked. Please allow popups and try again."); return; }
@@ -1052,6 +1104,9 @@ function TimetableView() {
                 <Button onClick={handleExportPDF} variant="outline" size="sm" className="gap-1.5">
                   <FileDown className="w-4 h-4" /> Export PDF
                 </Button>
+                <Button onClick={handleSaveSnapshot} disabled={isSaving} variant="outline" size="sm" className="gap-1.5">
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />} Save
+                </Button>
                 <Button onClick={handleReset} variant="outline" size="sm" className="gap-1.5">
                   <RotateCcw className="w-4 h-4" /> Reset
                 </Button>
@@ -1179,6 +1234,30 @@ function TimetableView() {
           </Card>
         )}
       </div>
+    <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Save snapshot</DialogTitle>
+            <DialogDescription>You can load or export this snapshot anytime from the 'Saved' page.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>Name</Label>
+            <Input
+              value={snapshotName}
+              onChange={e => setSnapshotName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleConfirmSave(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSaveDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleConfirmSave} disabled={isSaving} className="gap-1.5">
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageWrapper>
   );
 }
