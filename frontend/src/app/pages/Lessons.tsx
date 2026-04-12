@@ -503,64 +503,13 @@ export function Lessons() {
               )}
             </div>
 
-            {/* Sessions */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Sessions</Label>
-                <Button type="button" size="sm" variant="outline" onClick={() => addSession()}>
-                  <Plus className="w-3 h-3 mr-1" />
-                  Add Session
-                </Button>
-              </div>
-              {newLesson.sessions.map((session, idx) => (
-                <div key={idx} className="flex items-center gap-2 p-2 border rounded-lg">
-                  <Select 
-                    value={session.duration.toString()} 
-                    onValueChange={(val) => updateSession(idx, 'duration', parseInt(val) as 1 | 2 | 3)}
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 Period</SelectItem>
-                      <SelectItem value="2">2 Periods</SelectItem>
-                      <SelectItem value="3">3 Periods</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <span className="text-sm">×</span>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={session.count}
-                    onChange={(e) => updateSession(idx, 'count', parseInt(e.target.value) || 1)}
-                    className="w-20"
-                  />
-                  <span className="text-sm text-gray-500 dark:text-gray-400">= {session.duration * session.count}p</span>
-                  {newLesson.sessions.length > 1 && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => removeSession(idx)}
-                      className="ml-auto"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Total: {calculateTotalPeriods(newLesson.sessions)} periods | Distribution: {getSessionDistribution(newLesson.sessions)}
-              </p>
-            </div>
-
             {/* Lock to Fixed Time */}
             <div className="space-y-3 p-3 border rounded-lg bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800">
               <div className="flex items-center gap-2">
                 <Checkbox
                   checked={newLesson.is_locked}
-                  onCheckedChange={(checked) => setNewLesson({ 
-                    ...newLesson, 
+                  onCheckedChange={(checked) => setNewLesson({
+                    ...newLesson,
                     is_locked: !!checked,
                     locked_day: checked ? 0 : null,
                     locked_start_period: checked ? 1 : null,
@@ -573,13 +522,11 @@ export function Lessons() {
                 <div className="grid grid-cols-3 gap-2 ml-6">
                   <div className="space-y-1">
                     <Label className="text-xs">Day</Label>
-                    <Select 
-                      value={newLesson.locked_day?.toString() || "0"} 
+                    <Select
+                      value={newLesson.locked_day?.toString() || "0"}
                       onValueChange={(val) => setNewLesson({ ...newLesson, locked_day: parseInt(val) })}
                     >
-                      <SelectTrigger className="h-8">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {daysOfWeek.slice(0, numberOfDays).map((day, idx) => (
                           <SelectItem key={idx} value={idx.toString()}>{day}</SelectItem>
@@ -589,13 +536,11 @@ export function Lessons() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Start Period</Label>
-                    <Select 
-                      value={newLesson.locked_start_period?.toString() || "1"} 
+                    <Select
+                      value={newLesson.locked_start_period?.toString() || "1"}
                       onValueChange={(val) => setNewLesson({ ...newLesson, locked_start_period: parseInt(val) })}
                     >
-                      <SelectTrigger className="h-8">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Array.from({ length: periodsPerDay }, (_, i) => i + 1).map(period => (
                           <SelectItem key={period} value={period.toString()}>{period}</SelectItem>
@@ -605,13 +550,11 @@ export function Lessons() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Duration</Label>
-                    <Select 
-                      value={newLesson.locked_duration?.toString() || "1"} 
+                    <Select
+                      value={newLesson.locked_duration?.toString() || "1"}
                       onValueChange={(val) => setNewLesson({ ...newLesson, locked_duration: parseInt(val) as 1 | 2 | 3 })}
                     >
-                      <SelectTrigger className="h-8">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="1">1 Period</SelectItem>
                         <SelectItem value="2">2 Periods</SelectItem>
@@ -622,6 +565,51 @@ export function Lessons() {
                 </div>
               )}
             </div>
+
+            {/* Sessions — hidden when locked */}
+            {!newLesson.is_locked && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Sessions</Label>
+                  <Button type="button" size="sm" variant="outline" onClick={() => addSession()}>
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add Session
+                  </Button>
+                </div>
+                {newLesson.sessions.map((session, idx) => (
+                  <div key={idx} className="flex items-center gap-2 p-2 border rounded-lg">
+                    <Select
+                      value={session.duration.toString()}
+                      onValueChange={(val) => updateSession(idx, 'duration', parseInt(val) as 1 | 2 | 3)}
+                    >
+                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 Period</SelectItem>
+                        <SelectItem value="2">2 Periods</SelectItem>
+                        <SelectItem value="3">3 Periods</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm">×</span>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={session.count}
+                      onChange={(e) => updateSession(idx, 'count', parseInt(e.target.value) || 1)}
+                      className="w-20"
+                    />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">= {session.duration * session.count}p</span>
+                    {newLesson.sessions.length > 1 && (
+                      <Button type="button" size="sm" variant="ghost" onClick={() => removeSession(idx)} className="ml-auto">
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Total: {calculateTotalPeriods(newLesson.sessions)} periods | Distribution: {getSessionDistribution(newLesson.sessions)}
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
@@ -707,64 +695,13 @@ export function Lessons() {
                 </div>
               </div>
 
-              {/* Sessions */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Sessions</Label>
-                  <Button type="button" size="sm" variant="outline" onClick={() => addSession(true)}>
-                    <Plus className="w-3 h-3 mr-1" />
-                    Add Session
-                  </Button>
-                </div>
-                {editingLesson.sessions.map((session, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-2 border rounded-lg">
-                    <Select 
-                      value={session.duration.toString()} 
-                      onValueChange={(val) => updateSession(idx, 'duration', parseInt(val) as 1 | 2 | 3, true)}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 Period</SelectItem>
-                        <SelectItem value="2">2 Periods</SelectItem>
-                        <SelectItem value="3">3 Periods</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <span className="text-sm">×</span>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={session.count}
-                      onChange={(e) => updateSession(idx, 'count', parseInt(e.target.value) || 1, true)}
-                      className="w-20"
-                    />
-                    <span className="text-sm text-gray-500 dark:text-gray-400">= {session.duration * session.count}p</span>
-                    {editingLesson.sessions.length > 1 && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => removeSession(idx, true)}
-                        className="ml-auto"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Total: {calculateTotalPeriods(editingLesson.sessions)} periods
-                </p>
-              </div>
-
               {/* Lock to Fixed Time */}
               <div className="space-y-3 p-3 border rounded-lg bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800">
                 <div className="flex items-center gap-2">
                   <Checkbox
                     checked={editingLesson.is_locked}
-                    onCheckedChange={(checked) => setEditingLesson({ 
-                      ...editingLesson, 
+                    onCheckedChange={(checked) => setEditingLesson({
+                      ...editingLesson,
                       is_locked: !!checked,
                       locked_day: checked ? 0 : null,
                       locked_start_period: checked ? 1 : null,
@@ -777,13 +714,11 @@ export function Lessons() {
                   <div className="grid grid-cols-3 gap-2 ml-6">
                     <div className="space-y-1">
                       <Label className="text-xs">Day</Label>
-                      <Select 
-                        value={editingLesson.locked_day?.toString() || "0"} 
+                      <Select
+                        value={editingLesson.locked_day?.toString() || "0"}
                         onValueChange={(val) => setEditingLesson({ ...editingLesson, locked_day: parseInt(val) })}
                       >
-                        <SelectTrigger className="h-8">
-                          <SelectValue />
-                        </SelectTrigger>
+                        <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {daysOfWeek.slice(0, numberOfDays).map((day, idx) => (
                             <SelectItem key={idx} value={idx.toString()}>{day}</SelectItem>
@@ -793,13 +728,11 @@ export function Lessons() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Start Period</Label>
-                      <Select 
-                        value={editingLesson.locked_start_period?.toString() || "1"} 
+                      <Select
+                        value={editingLesson.locked_start_period?.toString() || "1"}
                         onValueChange={(val) => setEditingLesson({ ...editingLesson, locked_start_period: parseInt(val) })}
                       >
-                        <SelectTrigger className="h-8">
-                          <SelectValue />
-                        </SelectTrigger>
+                        <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {Array.from({ length: periodsPerDay }, (_, i) => i + 1).map(period => (
                             <SelectItem key={period} value={period.toString()}>{period}</SelectItem>
@@ -809,13 +742,11 @@ export function Lessons() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Duration</Label>
-                      <Select 
-                        value={editingLesson.locked_duration?.toString() || "1"} 
+                      <Select
+                        value={editingLesson.locked_duration?.toString() || "1"}
                         onValueChange={(val) => setEditingLesson({ ...editingLesson, locked_duration: parseInt(val) as 1 | 2 | 3 })}
                       >
-                        <SelectTrigger className="h-8">
-                          <SelectValue />
-                        </SelectTrigger>
+                        <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="1">1 Period</SelectItem>
                           <SelectItem value="2">2 Periods</SelectItem>
@@ -826,6 +757,51 @@ export function Lessons() {
                   </div>
                 )}
               </div>
+
+              {/* Sessions — hidden when locked */}
+              {!editingLesson.is_locked && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Sessions</Label>
+                    <Button type="button" size="sm" variant="outline" onClick={() => addSession(true)}>
+                      <Plus className="w-3 h-3 mr-1" />
+                      Add Session
+                    </Button>
+                  </div>
+                  {editingLesson.sessions.map((session, idx) => (
+                    <div key={idx} className="flex items-center gap-2 p-2 border rounded-lg">
+                      <Select
+                        value={session.duration.toString()}
+                        onValueChange={(val) => updateSession(idx, 'duration', parseInt(val) as 1 | 2 | 3, true)}
+                      >
+                        <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 Period</SelectItem>
+                          <SelectItem value="2">2 Periods</SelectItem>
+                          <SelectItem value="3">3 Periods</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span className="text-sm">×</span>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={session.count}
+                        onChange={(e) => updateSession(idx, 'count', parseInt(e.target.value) || 1, true)}
+                        className="w-20"
+                      />
+                      <span className="text-sm text-gray-500 dark:text-gray-400">= {session.duration * session.count}p</span>
+                      {editingLesson.sessions.length > 1 && (
+                        <Button type="button" size="sm" variant="ghost" onClick={() => removeSession(idx, true)} className="ml-auto">
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Total: {calculateTotalPeriods(editingLesson.sessions)} periods
+                  </p>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
