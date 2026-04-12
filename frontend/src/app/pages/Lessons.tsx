@@ -118,6 +118,19 @@ export function Lessons() {
       newLesson.class_ids.length > 0 &&
       newLesson.room_ids.length > 0
     ) {
+      if (newLesson.is_locked && newLesson.locked_day !== null && newLesson.locked_start_period !== null && newLesson.locked_duration !== null) {
+        const startPeriod0 = newLesson.locked_start_period - 1; // convert to 0-indexed
+        const breaks = settings.breaks ?? [];
+        const hitsBreak = breaks.some(
+          b => b.day === newLesson.locked_day &&
+               b.period >= startPeriod0 &&
+               b.period < startPeriod0 + newLesson.locked_duration!
+        );
+        if (hitsBreak) {
+          toast.error("Can't place a locked lesson during a break slot. Please choose a different time or duration.");
+          return;
+        }
+      }
       addLesson({
         subject_id: newLesson.subject_id,
         teacher_ids: newLesson.teacher_ids,
@@ -157,6 +170,19 @@ export function Lessons() {
 
   const handleSaveEdit = () => {
     if (editingLesson) {
+      if (editingLesson.is_locked && editingLesson.locked_day !== null && editingLesson.locked_start_period !== null && editingLesson.locked_duration !== null) {
+        const startPeriod0 = editingLesson.locked_start_period - 1; // convert to 0-indexed
+        const breaks = settings.breaks ?? [];
+        const hitsBreak = breaks.some(
+          b => b.day === editingLesson.locked_day &&
+               b.period >= startPeriod0 &&
+               b.period < startPeriod0 + editingLesson.locked_duration!
+        );
+        if (hitsBreak) {
+          toast.error("Can't place a locked lesson during a break slot. Please choose a different time or duration.");
+          return;
+        }
+      }
       updateLesson(editingLesson.id, {
         ...editingLesson,
         locked_start_period: editingLesson.is_locked && editingLesson.locked_start_period !== null ? editingLesson.locked_start_period - 1 : null, // Convert to 0-indexed
