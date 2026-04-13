@@ -172,6 +172,7 @@ class MiniGroupBase(BaseModel):
     selected_class_ids: str = "[]"
     selected_room_ids: str = "[]"
     selected_subject_ids: str = "[]"
+    constraint_mask: Optional[int] = 0
 
 class MiniGroupCreate(MiniGroupBase):
     id: Optional[str] = None

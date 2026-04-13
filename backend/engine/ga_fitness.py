@@ -167,7 +167,7 @@ class ConstraintSettings:
     S4: bool  = True;  S4_weight: float = 2.0   # no gaps in class daily schedule (strong — UX critical)
     S5: bool  = True;  S5_weight: float = 0.5   # max consecutive periods
     S6: bool  = True;  S6_weight: float = 1.2   # subject distribution across week (stronger)
-    S7: bool  = True;  S7_weight: float = 1.5   # equal first-period distribution across teachers
+    S7: bool  = True;  S7_weight: float = 1.5   # avoid labs on Friday
     S8: bool  = True;  S8_weight: float = 1.0   # consecutive distinct blocks for teacher
     S9: bool  = True;  S9_weight: float = 0.8   # prefer gaps on last day(s) of week — pack Mon–Thu
     S10: bool = True;  S10_weight: float = 2.0  # max 1 lab per class per day
@@ -180,7 +180,6 @@ class ConstraintSettings:
     # Soft constraint tuning
     max_consecutive_periods: int = 3   # for S5
 
-    @classmethod
     def all_hard_only(cls) -> "ConstraintSettings":
         """Only hard constraints — fastest fitness evaluation."""
         c = cls()
@@ -512,9 +511,9 @@ def evaluate(chr_: Chromosome, data: ProblemData, cs: ConstraintSettings, cache=
         penalty    += p
         soft_count += sc
 
-    # ── S7: First-period distribution ─────────────────────────────────────────
+    # ── S7: Avoid Friday Labs ─────────────────────────────────────────────────
     if cs.S7:
-        p, sc = _check_first_period_distribution(state, data, cs)
+        p, sc = _check_friday_labs(chr_, data, cs)
         penalty    += p
         soft_count += sc
 
@@ -606,42 +605,22 @@ def _check_consecutive(state: EvalState, data: ProblemData, cs: ConstraintSettin
     return penalty, count
 
 
-def _check_first_period_distribution(state: EvalState, data: ProblemData, cs: ConstraintSettings):
-    """
-    S7: Penalize unbalanced first-period assignments across teachers.
-    Ensures that no single teacher gets stuck with all early starts.
- 
-    Formula:
-      - Consider only teachers with at least one transition assignment.
-      - Calculate mean first-period count.
-      - Penalty = sum( (actual - mean)^2 ) * SOFT_BASE * weight
-    """
-    total_fp = sum(state.teacher_first_periods)
-    if total_fp == 0:
-        return 0.0, 0
- 
-    counts = []
-    # Only consider teachers who have AT LEAST ONE lesson assigned in total
-    # (prevents zero-lesson teachers from skewing the mean down)
-    for ti in range(len(data.teachers)):
-        mask = state.teacher_used[ti]
-        if mask > 0:
-            counts.append(state.teacher_first_periods[ti])
- 
-    if not counts:
-        return 0.0, 0
- 
-    n_active = len(counts)
-    mean = total_fp / n_active
- 
-    # Square deviation for smooth gradient
-    variance_sum = sum((c - mean)**2 for c in counts)
- 
-    penalty = SOFT_BASE * cs.S7_weight * variance_sum
-    # Report a "violation" if any teacher is > 1.0 away from mean
-    infractions = sum(1 for c in counts if abs(c - mean) > 1.0)
- 
     return penalty, infractions
+
+def _check_friday_labs(chr_: Chromosome, data: ProblemData, cs: ConstraintSettings):
+    """
+    S7: Penalize lab sessions scheduled on Friday (Day 4).
+    """
+    penalty = 0.0
+    count = 0
+    blocks = data.blocks
+    for gene in chr_.genes:
+        if gene.day == 4: # Friday
+            block = blocks[gene.block_idx]
+            if block.is_lab:
+                penalty += SOFT_BASE * cs.S7_weight
+                count += 1
+    return penalty, count
 
 def _check_distribution(chr_: Chromosome, data: ProblemData, cs: ConstraintSettings):
     """
