@@ -715,104 +715,79 @@ export const useStore = create<AppState>()(
           throw err;
         }
 
-        // Try backend first (Python GA)
-        if (s.backendAvailable) {
-          try {
-            let result: GenerateResponse;
-            if (groupId) {
-              const group = s.groups.find(g => g.id === groupId);
-              result = await api.generateMini(groupId, { constraint_mask: group?.constraint_mask ?? 0 });
-            } else {
-              result = await api.generate({ constraint_mask: Number(s.settings.constraintMask || "376335849471") });
-            }
-            const entries = convertBackendTimetable(result, s);
-            const ttId = `gen_${Date.now()}`;
-
-            // Extract grid metadata from the timetable response
-            // The backend returns { metadata: { days, periods, day_names }, class_views, teacher_views }
-            const ttData = result.timetable as Record<string, unknown>;
-            const responseMeta = ttData?.metadata as { days?: number; periods?: number; day_names?: string[] } | undefined;
-
-            // If generating for a mini group, resolve its breaks from the group store
-            let resolvedBreaks: Break[] | undefined;
-            if (groupId) {
-              const targetGroup = s.groups.find(g => g.id === groupId);
-              if (targetGroup) {
-                try {
-                  const overrides = JSON.parse(targetGroup.teacher_time_off_overrides || '{}');
-                  resolvedBreaks = Array.isArray(overrides.breaks) ? overrides.breaks : [];
-                } catch { resolvedBreaks = []; }
-              }
-            }
-
-            set({
-              generation: {
-                status: 'done', error: null, jobId: ttId,
-                fitness: result.fitness,
-                qualityPct: result.quality_pct,
-                hardViolations: result.hard_violations,
-                softViolations: result.soft_violations,
-                generationTimeSec: result.time_ms / 1000,
-                lessonsPlaced: result.lessons_placed,
-                totalLessons: result.total_lessons,
-                preflightOk: result.preflight_ok,
-                preflightErrors: result.preflight_errors ?? [],
-                preflightWarnings: result.preflight_warnings ?? [],
-                violationDetails: (result.violation_details ?? []).map(v => ({
-                  type: v.type, description: v.description, block_id: v.block_id ?? '',
-                })),
-                gaGenerations: result.generations,
-                gaStatus: result.status,
-                isModified: false,
-                gridMetadata: responseMeta ? {
-                  days: responseMeta.days ?? (parseInt(s.settings.numberOfDays) || 5),
-                  periods: responseMeta.periods ?? (parseInt(s.settings.periodsPerDay) || 7),
-                  day_names: responseMeta.day_names ?? ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].slice(0, parseInt(s.settings.numberOfDays) || 5),
-                  breaks: resolvedBreaks,
-                } : null,
-                timetable: {
-                  timetable_id: ttId, fitness: result.fitness,
-                  entries, generation_time_seconds: result.time_ms / 1000,
-                },
-              },
-            });
-            return;
-          } catch (err) {
-            if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-              const message = err.detail || 'You do not have permission to generate timetables.';
-              set({ generation: { ...emptyGeneration, status: 'failed', error: message } });
-              throw new Error(message);
-            }
-            console.warn('[generate] backend failed, falling back to local GA:', err);
-          }
+        if (!s.backendAvailable) {
+          const msg = "Backend is not available for generation.";
+          set({ generation: { ...emptyGeneration, status: 'failed', error: msg } });
+          return;
         }
 
-        // Local JS GA fallback
         try {
-          const constraints = loadConstraints();
-          const result = runGA(
-            s.lessons, s.subjects, s.teachers, s.classes, s.classrooms, s.settings, constraints,
-          );
+          let result: GenerateResponse;
+          if (groupId) {
+            const group = s.groups.find(g => g.id === groupId);
+            result = await api.generateMini(groupId, { constraint_mask: group?.constraint_mask ?? 0 });
+          } else {
+            result = await api.generate({ constraint_mask: Number(s.settings.constraintMask || "376335849471") });
+          }
+          const entries = convertBackendTimetable(result, s);
+          const ttId = `gen_${Date.now()}`;
+
+          // Extract grid metadata from the timetable response
+          // The backend returns { metadata: { days, periods, day_names }, class_views, teacher_views }
+          const ttData = result.timetable as Record<string, unknown>;
+          const responseMeta = ttData?.metadata as { days?: number; periods?: number; day_names?: string[] } | undefined;
+
+          // If generating for a mini group, resolve its breaks from the group store
+          let resolvedBreaks: Break[] | undefined;
+          if (groupId) {
+            const targetGroup = s.groups.find(g => g.id === groupId);
+            if (targetGroup) {
+              try {
+                const overrides = JSON.parse(targetGroup.teacher_time_off_overrides || '{}');
+                resolvedBreaks = Array.isArray(overrides.breaks) ? overrides.breaks : [];
+              } catch { resolvedBreaks = []; }
+            }
+          }
+
           set({
             generation: {
-              status: 'done', error: null, jobId: result.timetableId,
+              status: 'done', error: null, jobId: ttId,
               fitness: result.fitness,
-              qualityPct: Math.min(100, result.fitness / 1000),
-              hardViolations: null, softViolations: null,
-              generationTimeSec: result.generationTime,
-              lessonsPlaced: result.entries.length,
-              totalLessons: result.entries.length,
-              preflightOk: true, preflightErrors: [], preflightWarnings: [],
-              violationDetails: [], gaGenerations: null, gaStatus: 'local',
+              qualityPct: result.quality_pct,
+              hardViolations: result.hard_violations,
+              softViolations: result.soft_violations,
+              generationTimeSec: result.time_ms / 1000,
+              lessonsPlaced: result.lessons_placed,
+              totalLessons: result.total_lessons,
+              preflightOk: result.preflight_ok,
+              preflightErrors: result.preflight_errors ?? [],
+              preflightWarnings: result.preflight_warnings ?? [],
+              violationDetails: (result.violation_details ?? []).map(v => ({
+                type: v.type, description: v.description, block_id: v.block_id ?? '',
+              })),
+              gaGenerations: result.generations,
+              gaStatus: result.status,
               isModified: false,
+              gridMetadata: responseMeta ? {
+                days: responseMeta.days ?? (parseInt(s.settings.numberOfDays) || 5),
+                periods: responseMeta.periods ?? (parseInt(s.settings.periodsPerDay) || 7),
+                day_names: responseMeta.day_names ?? ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].slice(0, parseInt(s.settings.numberOfDays) || 5),
+                breaks: resolvedBreaks,
+              } : null,
               timetable: {
-                timetable_id: result.timetableId, fitness: result.fitness,
-                entries: result.entries, generation_time_seconds: result.generationTime,
+                timetable_id: ttId, fitness: result.fitness,
+                entries, generation_time_seconds: result.time_ms / 1000,
               },
             },
           });
-        } catch (err: unknown) {
-          set({ generation: { ...emptyGeneration, status: 'failed', error: err instanceof Error ? err.message : String(err) } });
+        } catch (err: any) {
+          if (err && err.status === 401 || err.status === 403) {
+            const message = err.detail || 'You do not have permission to generate timetables.';
+            set({ generation: { ...emptyGeneration, status: 'failed', error: message } });
+            throw new Error(message);
+          }
+          const message = err instanceof Error ? err.message : String(err);
+          set({ generation: { ...emptyGeneration, status: 'failed', error: message } });
         }
       },
 
