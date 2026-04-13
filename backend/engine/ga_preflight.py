@@ -119,6 +119,20 @@ def preflight_check(data: ProblemData) -> PreflightResult:
                 errors.append(f"Locked block {block.id} ({block.subject_name}): "
                                f"Day{ld+1} P{lp+off+1} is not a working slot")
 
+            # Check Resource Availability (H3, H4)
+            for ti in block.teacher_indices:
+                if not (data.teachers[ti].available_mask & bit):
+                    warnings.append(
+                        f"Locked block {block.id} ({block.subject_name}): "
+                        f"Teacher {data.teachers[ti].id} is UNAVAILABLE at Day{ld+1} P{lp+off+1} (guaranteed hard violation)"
+                    )
+            for ri in block.room_indices:
+                if not (data.rooms[ri].available_mask & bit):
+                    warnings.append(
+                        f"Locked block {block.id} ({block.subject_name}): "
+                        f"Room {data.rooms[ri].id} is UNAVAILABLE at Day{ld+1} P{lp+off+1} (guaranteed hard violation)"
+                    )
+
         # P5: Clash detection between locked lessons
         for off in range(dur):
             slot = ld * periods + lp + off
@@ -159,7 +173,7 @@ def preflight_check(data: ProblemData) -> PreflightResult:
         elif total > total_working_slots * 0.85:
             warnings.append(
                 f"Class {data.classes[ci].id}: {total}/{total_working_slots} "
-                f"slots used ({100*total/total_working_slots:.0f}%) — very tight schedule")
+                f"slots used ({100*total/total_working_slots:.0f}%) — very tight schedule, possibility of a hard violation")
 
     # ── P2: Teacher load vs available slots ───────────────────────────────────
     teacher_periods: dict = {}
@@ -179,19 +193,44 @@ def preflight_check(data: ProblemData) -> PreflightResult:
             warnings.append(
                 f"Teacher {t.id}: {total} periods assigned vs "
                 f"max_per_week={t.max_per_week}")
-        elif total > avail_bits * 0.9:
+        elif total > avail_bits * 0.85:
             warnings.append(
                 f"Teacher {t.id}: {total}/{avail_bits} available slots used "
-                f"({100*total/avail_bits:.0f}%) — very tight")
+                f"({100*total/avail_bits:.0f}%) — very tight, possibility of a hard violation")
+
+    # ── P2b: Room load vs available slots ───────────────────────────────────
+    room_periods: dict = {}
+    for block in data.blocks:
+        for ri in block.room_indices:
+            room_periods[ri] = room_periods.get(ri, 0) + block.duration * block.count
+
+    for ri, total in room_periods.items():
+        r          = data.rooms[ri]
+        avail_bits = bin(r.available_mask & working).count('1')
+
+        if total > avail_bits:
+            errors.append(
+                f"Room {r.id}: assigned {total} periods "
+                f"but only {avail_bits} available slots")
+        elif total > avail_bits * 0.85:
+            warnings.append(
+                f"Room {r.id}: {total}/{avail_bits} available slots used "
+                f"({100*total/avail_bits:.0f}%) — very tight, possibility of a hard violation")
 
     # ── P3: Room type availability ────────────────────────────────────────────
     # Count lab rooms and check lab block requirements
     lab_rooms      = sum(1 for r in data.rooms if r.is_lab)
+    lab_capacity   = sum(bin(r.available_mask & working).count('1') for r in data.rooms if r.is_lab)
     lab_slots_need = sum(block.duration * block.count
                          for block in data.blocks if block.is_lab)
 
     if lab_slots_need > 0 and lab_rooms == 0:
         errors.append(f"No lab rooms defined but {lab_slots_need} lab periods required")
+    elif lab_slots_need > lab_capacity:
+        errors.append(f"Need {lab_slots_need} lab periods but total lab capacity is only {lab_capacity}")
+    elif lab_capacity > 0 and lab_slots_need > lab_capacity * 0.85:
+        warnings.append(f"Lab capacity very tight: {lab_slots_need}/{lab_capacity} slots used "
+                        f"({100*lab_slots_need/lab_capacity:.0f}%) — possibility of a hard violation")
 
     # ── P6: Double/triple fit check ───────────────────────────────────────────
     for block in data.blocks:

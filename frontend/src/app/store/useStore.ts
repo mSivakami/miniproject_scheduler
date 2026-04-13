@@ -312,6 +312,13 @@ export interface GenerationState {
   gaGenerations: number | null;
   gaStatus: string | null;
   isModified?: boolean;
+  /** Grid metadata from the generation response — essential for mini groups with different dimensions */
+  gridMetadata?: {
+    days: number;
+    periods: number;
+    day_names: string[];
+    breaks?: Break[];
+  } | null;
   timetable: {
     timetable_id: string;
     fitness: number;
@@ -623,6 +630,7 @@ const emptyGeneration: GenerationState = {
   preflightOk: null, preflightErrors: [], preflightWarnings: [],
   violationDetails: [], gaGenerations: null, gaStatus: null,
   isModified: false,
+  gridMetadata: null,
   timetable: null,
 };
 
@@ -718,6 +726,24 @@ export const useStore = create<AppState>()(
             }
             const entries = convertBackendTimetable(result, s);
             const ttId = `gen_${Date.now()}`;
+
+            // Extract grid metadata from the timetable response
+            // The backend returns { metadata: { days, periods, day_names }, class_views, teacher_views }
+            const ttData = result.timetable as Record<string, unknown>;
+            const responseMeta = ttData?.metadata as { days?: number; periods?: number; day_names?: string[] } | undefined;
+
+            // If generating for a mini group, resolve its breaks from the group store
+            let resolvedBreaks: Break[] | undefined;
+            if (groupId) {
+              const targetGroup = s.groups.find(g => g.id === groupId);
+              if (targetGroup) {
+                try {
+                  const overrides = JSON.parse(targetGroup.teacher_time_off_overrides || '{}');
+                  resolvedBreaks = Array.isArray(overrides.breaks) ? overrides.breaks : [];
+                } catch { resolvedBreaks = []; }
+              }
+            }
+
             set({
               generation: {
                 status: 'done', error: null, jobId: ttId,
@@ -737,6 +763,12 @@ export const useStore = create<AppState>()(
                 gaGenerations: result.generations,
                 gaStatus: result.status,
                 isModified: false,
+                gridMetadata: responseMeta ? {
+                  days: responseMeta.days ?? (parseInt(s.settings.numberOfDays) || 5),
+                  periods: responseMeta.periods ?? (parseInt(s.settings.periodsPerDay) || 7),
+                  day_names: responseMeta.day_names ?? ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].slice(0, parseInt(s.settings.numberOfDays) || 5),
+                  breaks: resolvedBreaks,
+                } : null,
                 timetable: {
                   timetable_id: ttId, fitness: result.fitness,
                   entries, generation_time_seconds: result.time_ms / 1000,
