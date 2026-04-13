@@ -4,7 +4,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Settings as SettingsIcon, Save, Sparkles, Trash2, HelpCircle, Coffee } from "lucide-react";
+import { Settings as SettingsIcon, Save, Trash2, HelpCircle, Coffee } from "lucide-react";
 import { PageWrapper } from "../components/PageWrapper";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ import { HelpTourDialog } from "../components/HelpTourDialog";
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export function Settings() {
-  const { settings, updateSettings, loadSampleData, resetAllData } = useStore();
+  const { settings, updateSettings, resetAllData } = useStore();
   const [schoolName, setSchoolName] = useState(settings.schoolName);
   const [academicYear, setAcademicYear] = useState(settings.academicYear);
   const [periodsPerDay, setPeriodsPerDay] = useState(settings.periodsPerDay);
@@ -22,6 +22,7 @@ export function Settings() {
   const [breaks, setBreaks] = useState<Break[]>(settings.breaks || []);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isHelpTourOpen, setIsHelpTourOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   const numDays = parseInt(numberOfDays);
   const numPeriods = parseInt(periodsPerDay);
@@ -63,15 +64,17 @@ export function Settings() {
     toast.success("Settings saved.");
   };
 
-  const handleLoadSample = () => {
-    loadSampleData();
-    toast.success("Sample data loaded.");
-  };
-
-  const handleResetAll = () => {
-    resetAllData();
-    setIsResetDialogOpen(false);
-    toast.success("All data cleared.");
+  const handleResetAll = async () => {
+    try {
+      setIsResetting(true);
+      await resetAllData();
+      setIsResetDialogOpen(false);
+      toast.success("All data cleared across all tabs.");
+    } catch (err) {
+      toast.error("Failed to reset data.");
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   return (
@@ -218,27 +221,16 @@ export function Settings() {
           </Card>
 
           {/* Data Management */}
-          <Card>
+          <Card className="xl:col-span-2">
             <CardHeader className="pb-4">
               <CardTitle className="text-base">Data management</CardTitle>
-              <CardDescription>Load sample data or reset everything</CardDescription>
+              <CardDescription>Clear your workspace and start fresh</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="p-4 rounded-md bg-muted/40 border border-border">
-                <p className="text-sm font-medium mb-1">Load sample data</p>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Populate the app with sample teachers, classes, subjects, and classrooms for testing.
-                </p>
-                <Button onClick={handleLoadSample} variant="outline" size="sm" className="gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Load sample data
-                </Button>
-              </div>
-
-              <div className="p-4 rounded-md bg-destructive/5 border border-destructive/20">
+            <CardContent className="space-y-4">
+              <div className="p-4 rounded-md bg-destructive/5 border border-destructive/20 max-w-2xl">
                 <p className="text-sm font-medium mb-1 text-destructive">Danger zone</p>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Permanently delete all data. This cannot be undone.
+                  Permanently delete all subjects, teachers, classes, rooms, and groups from the store and the backend server. This action cannot be undone.
                 </p>
                 <Button
                   onClick={() => setIsResetDialogOpen(true)}
@@ -251,7 +243,7 @@ export function Settings() {
                 </Button>
               </div>
 
-              <div className="p-4 rounded-md bg-muted/30 border border-border">
+              <div className="p-4 rounded-md bg-muted/30 border border-border max-w-2xl">
                 <p className="text-sm font-medium mb-0.5">About</p>
                 <p className="text-xs text-muted-foreground">Automatic Timetable Scheduler · v1.0.0 · Genetic Algorithm</p>
               </div>
@@ -261,17 +253,19 @@ export function Settings() {
       </div>
 
       {/* Reset dialog */}
-      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+      <Dialog open={isResetDialogOpen} onOpenChange={(o) => !isResetting && setIsResetDialogOpen(o)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reset all data?</DialogTitle>
             <DialogDescription>
-              This will permanently delete all subjects, teachers, classes, classrooms, and reset settings to default. This cannot be undone.
+              This will permanently delete ALL data across all modules (Subjects, Teachers, Classes, Rooms, and Groups). The application will be restored to its default empty state.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsResetDialogOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleResetAll}>Reset everything</Button>
+            <Button variant="outline" onClick={() => setIsResetDialogOpen(false)} disabled={isResetting}>Cancel</Button>
+            <Button variant="destructive" onClick={handleResetAll} disabled={isResetting}>
+              {isResetting ? "Resetting..." : "Reset everything"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -5,7 +5,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
-import { Plus, Pencil, Trash2, BookOpen, Search, Trash, Sparkles, Beaker, Brain, Filter } from "lucide-react";
+import { Plus, Pencil, Trash2, BookOpen, Search, Trash, Beaker, Brain, Filter } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { Switch } from "../components/ui/switch";
 import { PageWrapper } from "../components/PageWrapper";
@@ -14,7 +14,7 @@ import type { Subject } from "../store/useStore";
 import { toast } from "sonner";
 
 export function Subjects() {
-  const { subjects, addSubject, updateSubject, deleteSubject, deleteAllSubjects, loadSampleData } = useStore();
+  const { subjects, addSubject, updateSubject, deleteSubject, deleteAllSubjects } = useStore();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
@@ -88,10 +88,6 @@ export function Subjects() {
     toast.success("All subjects deleted!");
   };
 
-  const handleLoadSample = () => {
-    loadSampleData();
-    toast.success("Sample data loaded!");
-  };
 
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredSubjects.length) {
@@ -128,10 +124,6 @@ export function Subjects() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleLoadSample} variant="outline" className="gap-2">
-              <Sparkles className="w-4 h-4" />
-              Load Sample
-            </Button>
             <Button onClick={() => setIsAddDialogOpen(true)} className="gap-1.5">
               <Plus className="w-4 h-4" />
               Add Subject

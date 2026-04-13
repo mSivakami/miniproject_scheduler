@@ -5,14 +5,14 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
-import { Plus, Pencil, Trash2, School, Search, Trash, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, School, Search, Trash } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { PageWrapper } from "../components/PageWrapper";
 import { useStore, Class } from "../store/useStore";
 import { toast } from "sonner";
 
 export function Classes() {
-  const { classes, addClass, updateClass, deleteClass, deleteAllClasses, loadSampleData } = useStore();
+  const { classes, addClass, updateClass, deleteClass, deleteAllClasses } = useStore();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
@@ -69,10 +69,6 @@ export function Classes() {
     toast.success("All classes deleted!");
   };
 
-  const handleLoadSample = () => {
-    loadSampleData();
-    toast.success("Sample data loaded!");
-  };
 
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredClasses.length) {
@@ -109,10 +105,6 @@ export function Classes() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleLoadSample} variant="outline" className="gap-2">
-              <Sparkles className="w-4 h-4" />
-              Load Sample
-            </Button>
             <Button onClick={() => setIsAddDialogOpen(true)} className="gap-1.5">
               <Plus className="w-4 h-4" />
               Add Class

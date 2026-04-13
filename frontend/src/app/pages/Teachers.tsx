@@ -5,13 +5,13 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
-import { Plus, Pencil, Trash2, Users, Search, Trash, Sparkles, CalendarOff } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Search, Trash, CalendarOff } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { toast } from "sonner";
 import { useStore, Teacher, slotsToGrid, gridToSlots } from "../store/useStore";
 
 export function Teachers() {
-  const { teachers, addTeacher, updateTeacher, deleteTeacher, deleteAllTeachers, settings, loadSampleData } = useStore();
+  const { teachers, addTeacher, updateTeacher, deleteTeacher, deleteAllTeachers, settings } = useStore();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isTimeOffDialogOpen, setIsTimeOffDialogOpen] = useState(false);
@@ -87,10 +87,6 @@ export function Teachers() {
     toast.success("All teachers deleted!");
   };
 
-  const handleLoadSample = () => {
-    loadSampleData();
-    toast.success("Sample data loaded!");
-  };
 
   const handleTimeOff = (teacher: Teacher) => {
     setSelectedTeacher({ ...teacher });
@@ -161,10 +157,6 @@ export function Teachers() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleLoadSample} variant="outline" className="gap-2">
-              <Sparkles className="w-4 h-4" />
-              Load Sample
-            </Button>
             <Button onClick={() => setIsAddDialogOpen(true)} className="gap-1.5">
               <Plus className="w-4 h-4" />
               Add Teacher

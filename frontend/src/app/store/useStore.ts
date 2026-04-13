@@ -594,30 +594,9 @@ interface AppState {
   bootstrap: () => Promise<void>;
   saveAll: () => Promise<void>;
   markAsSaved: () => void;
-  resetAllData: () => void;
-  loadSampleData: () => void;
+  resetAllData: () => Promise<void>;
   completeOnboarding: () => void;
 }
-
-// ─── Sample data ──────────────────────────────────────────────────────────
-
-export const sampleSubjects = (): Subject[] => [
-  { id: 's1', name: 'Artificial Intelligence', short: 'AI', is_difficult: true, is_lab: false, priority: 1 },
-  { id: 's2', name: 'Data Structures', short: 'DS', is_difficult: false, is_lab: false, priority: 2 },
-  { id: 's3', name: 'Database Lab', short: 'DBL', is_difficult: false, is_lab: true, priority: 3 },
-];
-export const sampleTeachers = (): Teacher[] => [
-  { id: 't1', name: 'Anusree Radhakrishnan', short: 'AR', color: '#3b82f6', available_mask: -1, max_per_day: 6, max_per_week: 30, unavailable_slots: [] },
-  { id: 't2', name: 'Divya Krishnan', short: 'DK', color: '#10b981', available_mask: -1, max_per_day: 6, max_per_week: 30, unavailable_slots: [] },
-];
-export const sampleClasses = (): Class[] => [
-  { id: 'c1', name: 'CS-A', short: 'CS-A', capacity: 60 },
-  { id: 'c2', name: 'CS-B', short: 'CS-B', capacity: 60 },
-];
-export const sampleClassrooms = (): Classroom[] => [
-  { id: 'r1', name: 'Room 201', short: 'R201', is_lab: false, building: '', color: '#a855f7' },
-  { id: 'r2', name: 'Lab A', short: 'LA', is_lab: true, building: '', color: '#10b981' },
-];
 
 // ─── Store ────────────────────────────────────────────────────────────────
 
@@ -923,22 +902,34 @@ export const useStore = create<AppState>()(
       markAsSaved: () => set({ hasUnsavedChanges: false }),
       completeOnboarding: () => set({ isFirstTime: false }),
 
-      resetAllData: () => set({
-        subjects: [], teachers: [], classes: [], classrooms: [], lessons: [],
-        generation: emptyGeneration,
-        settings: defaultSettings,
-        hasUnsavedChanges: false, isBootstrapped: false, backendAvailable: false,
-      }),
+      resetAllData: async () => {
+        const s = get();
+        
+        // 1. Clear Local State
+        set({
+          subjects: [], teachers: [], classes: [], classrooms: [], lessons: [], groups: [],
+          generation: emptyGeneration,
+          settings: defaultSettings,
+          hasUnsavedChanges: false, isBootstrapped: false,
+        });
 
-      loadSampleData: () => set({
-        subjects: sampleSubjects(),
-        teachers: sampleTeachers(),
-        classes: sampleClasses(),
-        classrooms: sampleClassrooms(),
-        lessons: [],
-        settings: { ...defaultSettings, schoolName: 'Government Engineering College' },
-        hasUnsavedChanges: true,
-      }),
+        // 2. Sync with Backend if available
+        if (s.backendAvailable) {
+          try {
+            // Delete all groups
+            for (const g of s.groups) {
+              await api.deleteMiniGroup(g.id);
+            }
+            // Send empty payload to clear main entities
+            await get().saveAll();
+          } catch (err) {
+            console.error('[resetAllData] backend cleanup failed:', err);
+          }
+        }
+        
+        // Re-bootstrap to ensure clean state
+        await get().bootstrap();
+      },
     }),
     {
       name: 'autoscheduler-store',

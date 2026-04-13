@@ -4,7 +4,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
-import { Plus, Pencil, Trash2, DoorOpen, Search, Trash, Sparkles, Filter, Beaker } from "lucide-react";
+import { Plus, Pencil, Trash2, DoorOpen, Search, Trash, Filter, Beaker } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { Switch } from "../components/ui/switch";
 import { PageWrapper } from "../components/PageWrapper";
@@ -14,7 +14,7 @@ import { toast } from "sonner";
 const COLORS = ["#a855f7", "#10b981", "#3b82f6", "#eab308", "#ef4444", "#8b5cf6", "#06b6d4"];
 
 export function Classrooms() {
-  const { classrooms, addClassroom, updateClassroom, deleteClassroom, deleteAllClassrooms, loadSampleData } = useStore();
+  const { classrooms, addClassroom, updateClassroom, deleteClassroom, deleteAllClassrooms } = useStore();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
@@ -87,10 +87,6 @@ export function Classrooms() {
     toast.success("All classrooms deleted!");
   };
 
-  const handleLoadSample = () => {
-    loadSampleData();
-    toast.success("Sample data loaded!");
-  };
 
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredClassrooms.length) {
@@ -127,10 +123,6 @@ export function Classrooms() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleLoadSample} variant="outline" className="gap-2">
-              <Sparkles className="w-4 h-4" />
-              Load Sample
-            </Button>
             <Button onClick={() => setIsAddDialogOpen(true)} className="gap-1.5">
               <Plus className="w-4 h-4" />
               Add Classroom
