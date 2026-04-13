@@ -131,13 +131,27 @@ def _db_to_ga_structures(institution, teachers, subjects, rooms, classrooms, les
     Returns:
         (ga_teachers, ga_subjects, ga_rooms, ga_classes, ga_lesson_blocks, institution_settings)
     """
+    # Check for group time off overrides
+    teacher_overrides = {}
+    if hasattr(institution, "teacher_time_off_overrides") and institution.teacher_time_off_overrides:
+        try:
+            teacher_overrides = json.loads(institution.teacher_time_off_overrides)
+        except Exception:
+            pass
+
     # Teachers
     ga_teachers = {}
     for t in teachers:
+        # Use overridden bitmask if provided by the MiniGroup, else use teacher's default
+        if t.id in teacher_overrides:
+            mask = int(teacher_overrides[t.id])
+        else:
+            mask = int(t.available_mask) if int(t.available_mask) != -1 else (1 << 64) - 1
+            
         ga_teachers[t.id] = GATeacher(
             id=t.id,
             name=t.name,
-            available_mask=int(t.available_mask) if int(t.available_mask) != -1 else (1 << 64) - 1,
+            available_mask=mask,
             max_per_day=t.max_per_day,
             max_per_week=t.max_per_week,
         )

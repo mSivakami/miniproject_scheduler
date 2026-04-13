@@ -6,7 +6,7 @@
  */
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { api, AllDataOut, ApiError, GenerateResponse } from '../api';
+import { api, AllDataOut, ApiError, GenerateResponse, MiniGroupOut, MiniGroupCreate } from '../api';
 import { runGA } from '../ga/scheduler';
 import type { SchedulerConstraints } from '../ga/scheduler';
 
@@ -539,6 +539,7 @@ interface AppState {
   classes: Class[];
   classrooms: Classroom[];
   lessons: Lesson[];
+  groups: MiniGroupOut[];
   generation: GenerationState;
   settings: AppSettings;
   isFirstTime: boolean;
@@ -571,7 +572,13 @@ interface AppState {
   deleteLesson: (id: string) => void;
   deleteAllLessons: () => void;
 
-  startGeneration: () => Promise<void>;
+  setGroups: (groups: MiniGroupOut[]) => void;
+  fetchGroups: () => Promise<void>;
+  createGroup: (data: MiniGroupCreate) => Promise<void>;
+  updateGroup: (id: string, data: MiniGroupCreate) => Promise<void>;
+  deleteGroup: (id: string) => Promise<void>;
+
+  startGeneration: (groupId?: string) => Promise<void>;
   resetGeneration: () => void;
   updateTimetableEntry: (entryId: string, updated: TimetableEntry) => void;
   restoreGeneration: (timetable: GenerationState['timetable']) => void;
@@ -622,7 +629,7 @@ const emptyGeneration: GenerationState = {
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
-      subjects: [], teachers: [], classes: [], classrooms: [], lessons: [],
+      subjects: [], teachers: [], classes: [], classrooms: [], lessons: [], groups: [],
       generation: emptyGeneration,
       settings: defaultSettings,
       isFirstTime: true,
@@ -660,8 +667,34 @@ export const useStore = create<AppState>()(
       deleteLesson: (id) => set(st => ({ lessons: st.lessons.filter(x => x.id !== id), hasUnsavedChanges: true })),
       deleteAllLessons: () => set({ lessons: [], hasUnsavedChanges: true }),
 
+      // ── CRUD: Groups ──────────────────────────────────────────────────
+      setGroups: (groups) => set({ groups }),
+      fetchGroups: async () => {
+        try {
+          const res = await api.listMiniGroups();
+          set({ groups: res });
+        } catch { }
+      },
+      createGroup: async (data) => {
+        const res = await api.createMiniGroup(data);
+        set(st => ({ groups: [...st.groups, res] }));
+      },
+      updateGroup: async (id, data) => {
+        const res = await api.updateMiniGroup(id, data);
+        set(st => ({ groups: st.groups.map(g => g.id === id ? res : g) }));
+      },
+      deleteGroup: async (id) => {
+        await api.deleteMiniGroup(id);
+        set(st => ({ groups: st.groups.filter(g => g.id !== id) }));
+        // also remove lessons associated with this group
+        set(st => ({ 
+          lessons: st.lessons.filter(l => l.mini_group_id !== id),
+          hasUnsavedChanges: true,
+        }));
+      },
+
       // ── Generation ────────────────────────────────────────────────────
-      startGeneration: async () => {
+      startGeneration: async (groupId?: string) => {
         set({ generation: { ...emptyGeneration, status: 'running' } });
         await new Promise(r => setTimeout(r, 50));
 
@@ -677,9 +710,12 @@ export const useStore = create<AppState>()(
         // Try backend first (Python GA)
         if (s.backendAvailable) {
           try {
-            const result: GenerateResponse = await api.generate({
-              constraint_mask: 376335849471,
-            });
+            let result: GenerateResponse;
+            if (groupId) {
+              result = await api.generateMini(groupId, { constraint_mask: 376335849471 });
+            } else {
+              result = await api.generate({ constraint_mask: 376335849471 });
+            }
             const entries = convertBackendTimetable(result, s);
             const ttId = `gen_${Date.now()}`;
             set({

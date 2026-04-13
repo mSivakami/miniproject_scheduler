@@ -555,6 +555,8 @@ function TimetableView() {
     classrooms,
     subjects,
     lessons,
+    groups,
+    fetchGroups,
     generation,
     settings,
     startGeneration,
@@ -567,7 +569,12 @@ function TimetableView() {
 
   const [viewMode, setViewMode] = useState<"teacher" | "class" | "classroom">("teacher");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationTarget, setGenerationTarget] = useState<string>("main");
   const [selectedEntityId, setSelectedEntityId] = useState("all");
+
+  useEffect(() => {
+    fetchGroups();
+  }, [fetchGroups]);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [duplicatePromptOpen, setDuplicatePromptOpen] = useState(false);
@@ -638,7 +645,7 @@ function TimetableView() {
         toast.info("Saving latest changes before generation...");
         await saveAll();
       }
-      await startGeneration();
+      await startGeneration(generationTarget === "main" ? undefined : generationTarget);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Generation failed.";
       toast.error(message);
@@ -1260,10 +1267,23 @@ function TimetableView() {
                 </Button>
               </>
             )}
-            <Button onClick={handleGenerate} disabled={isGenerating} size="sm" className="gap-1.5">
-              <Sparkles className="w-4 h-4" />
-              {isGenerating ? "Generating..." : "Generate Timetable"}
-            </Button>
+            <div className="flex items-center gap-2 border-l border-border pl-3 ml-1 border-opacity-50">
+              <Select value={generationTarget} onValueChange={setGenerationTarget}>
+                <SelectTrigger className="w-40 h-8 text-xs bg-background">
+                  <SelectValue placeholder="Select target..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="main">Main Schedule</SelectItem>
+                  {groups.map((g: any) => (
+                    <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={handleGenerate} disabled={isGenerating} size="sm" className="gap-1.5">
+                <Sparkles className="w-4 h-4" />
+                {isGenerating ? "Generating..." : "Generate"}
+              </Button>
+            </div>
           </div>
         </div>
 

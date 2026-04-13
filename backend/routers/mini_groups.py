@@ -27,8 +27,8 @@ def create_mini_group(data: MiniGroupCreate, db: Session = Depends(get_db)):
     """Create a new mini-group. Enforces max 2 per institution."""
     inst = get_or_create_institution(db)
     count = db.query(MiniGroup).filter(MiniGroup.institution_id == inst.id).count()
-    if count >= 2:
-        raise HTTPException(400, "Maximum of 2 mini-groups allowed.")
+    if count >= 6:
+        raise HTTPException(400, "Maximum of 6 mini-groups allowed.")
 
     b_mask = compute_break_mask(data.days_per_week, data.periods_per_day, data.break_after_period)
     w_mask = compute_working_mask(data.days_per_week, data.periods_per_day, b_mask)
@@ -42,6 +42,11 @@ def create_mini_group(data: MiniGroupCreate, db: Session = Depends(get_db)):
         break_after_period=data.break_after_period,
         break_mask=str(b_mask),
         working_slot_mask=str(w_mask),
+        teacher_time_off_overrides=data.teacher_time_off_overrides,
+        selected_teacher_ids=data.selected_teacher_ids,
+        selected_class_ids=data.selected_class_ids,
+        selected_room_ids=data.selected_room_ids,
+        selected_subject_ids=data.selected_subject_ids,
     )
     if data.id:
         obj.id = data.id
@@ -62,6 +67,11 @@ def update_mini_group(group_id: str, data: MiniGroupCreate, db: Session = Depend
     obj.days_per_week = data.days_per_week
     obj.periods_per_day = data.periods_per_day
     obj.break_after_period = data.break_after_period
+    obj.teacher_time_off_overrides = data.teacher_time_off_overrides
+    obj.selected_teacher_ids = data.selected_teacher_ids
+    obj.selected_class_ids = data.selected_class_ids
+    obj.selected_room_ids = data.selected_room_ids
+    obj.selected_subject_ids = data.selected_subject_ids
     
     obj.break_mask = str(compute_break_mask(
         obj.days_per_week, obj.periods_per_day, obj.break_after_period

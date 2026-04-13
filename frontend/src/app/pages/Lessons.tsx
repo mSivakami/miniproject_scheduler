@@ -57,6 +57,7 @@ export function Lessons() {
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   const filteredLessons = lessons.filter(lesson => {
+    if (lesson.mini_group_id) return false;
     const subject = subjects.find(s => s.id === lesson.subject_id);
     const searchLower = searchQuery.toLowerCase();
     return subject?.name?.toLowerCase().includes(searchLower) ?? true;

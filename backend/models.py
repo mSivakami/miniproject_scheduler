@@ -223,6 +223,14 @@ class MiniGroup(Base):
     break_after_period = Column(Integer, default=3)
     break_mask      = Column(String, default="0")
     working_slot_mask = Column(String, default="0")
+    
+    # Group configurations
+    teacher_time_off_overrides = Column(Text, default="{}") 
+    selected_teacher_ids = Column(Text, default="[]")
+    selected_class_ids = Column(Text, default="[]")
+    selected_room_ids = Column(Text, default="[]")
+    selected_subject_ids = Column(Text, default="[]")
+    
     created_at      = Column(DateTime, server_default=func.now())
     updated_at      = Column(DateTime, onupdate=func.now())
 

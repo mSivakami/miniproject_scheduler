@@ -167,6 +167,11 @@ class MiniGroupBase(BaseModel):
     days_per_week: int = 5
     periods_per_day: int = 7
     break_after_period: int = 3
+    teacher_time_off_overrides: str = "{}"
+    selected_teacher_ids: str = "[]"
+    selected_class_ids: str = "[]"
+    selected_room_ids: str = "[]"
+    selected_subject_ids: str = "[]"
 
 class MiniGroupCreate(MiniGroupBase):
     id: Optional[str] = None

@@ -165,6 +165,27 @@ export interface TimetableOut {
   created_at: string;
 }
 
+export interface MiniGroupCreate {
+  id?: string;
+  name: string;
+  slot_index?: number;
+  days_per_week?: number;
+  periods_per_day?: number;
+  break_after_period?: number;
+  teacher_time_off_overrides?: string;
+  selected_teacher_ids?: string;
+  selected_class_ids?: string;
+  selected_room_ids?: string;
+  selected_subject_ids?: string;
+}
+
+export interface MiniGroupOut extends MiniGroupCreate {
+  id: string;
+  break_mask: string;
+  working_slot_mask: string;
+  created_at: string;
+}
+
 export interface TimetableDetailOut extends TimetableOut {
   timetable_json: string;
 }
@@ -205,6 +226,20 @@ export const api = {
   // Generate for a mini-group
   generateMini(groupId: string, opts?: object): Promise<GenerateResponse> {
     return request('POST', api_url(`/api/generate/mini/${groupId}`), opts ?? {});
+  },
+
+  // Mini-Groups CRUD
+  listMiniGroups(): Promise<MiniGroupOut[]> {
+    return request('GET', api_url('/api/mini-groups'));
+  },
+  createMiniGroup(data: MiniGroupCreate): Promise<MiniGroupOut> {
+    return request('POST', api_url('/api/mini-groups'), data);
+  },
+  updateMiniGroup(id: string, data: MiniGroupCreate): Promise<MiniGroupOut> {
+    return request('PUT', api_url(`/api/mini-groups/${id}`), data);
+  },
+  deleteMiniGroup(id: string): Promise<void> {
+    return request('DELETE', api_url(`/api/mini-groups/${id}`));
   },
 
   // Saved timetables
