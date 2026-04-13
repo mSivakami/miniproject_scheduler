@@ -581,11 +581,14 @@ function TimetableView() {
   const [matchedSnapshotId, setMatchedSnapshotId] = useState<string | null>(null);
   const [matchedSnapshotName, setMatchedSnapshotName] = useState<string>("");
   const [snapshotName, setSnapshotName] = useState("");
-  const numDays = parseInt(settings.numberOfDays) || 5;
-  const numPeriods = parseInt(settings.periodsPerDay) || 7;
-  const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].slice(0, numDays);
+  // ── Grid dimensions: prefer generation's gridMetadata (from mini-group), else main settings ──
+  const gridMeta = generation.gridMetadata;
+  const numDays = gridMeta?.days ?? (parseInt(settings.numberOfDays) || 5);
+  const numPeriods = gridMeta?.periods ?? (parseInt(settings.periodsPerDay) || 7);
+  const dayNames = gridMeta?.day_names ?? ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].slice(0, numDays);
+  const activeBreaks = gridMeta?.breaks ?? settings.breaks ?? [];
   const localEntries = generation.timetable?.entries ?? [];
-  const breakKeys = new Set((settings.breaks ?? []).map(b => `${b.day}_${b.period}`));
+  const breakKeys = new Set(activeBreaks.map(b => `${b.day}_${b.period}`));
 
   const [undoStack, setUndoStack] = useState<{ id: string; oldEntry: TimetableEntry }[][]>([]);
 
@@ -733,10 +736,10 @@ function TimetableView() {
     const snapshotPayload = {
       ...generation.timetable,
       grid_settings: {
-        numberOfDays: settings.numberOfDays,
-        periodsPerDay: settings.periodsPerDay,
+        numberOfDays: String(numDays),
+        periodsPerDay: String(numPeriods),
         breakAfterPeriod: settings.breakAfterPeriod,
-        breaks: settings.breaks,
+        breaks: activeBreaks,
       },
     };
 
@@ -786,10 +789,10 @@ function TimetableView() {
     const snapshotPayload = {
       ...generation.timetable,
       grid_settings: {
-        numberOfDays: settings.numberOfDays,
-        periodsPerDay: settings.periodsPerDay,
+        numberOfDays: String(numDays),
+        periodsPerDay: String(numPeriods),
         breakAfterPeriod: settings.breakAfterPeriod,
-        breaks: settings.breaks,
+        breaks: activeBreaks,
       },
     };
 
@@ -861,7 +864,7 @@ function TimetableView() {
     accent: string,
   ): string => {
     const periodNums = Array.from({ length: numPeriods }, (_, i) => i);
-    const breakSet = new Set((settings.breaks ?? []).map((b) => `${b.day}_${b.period}`));
+    const breakSet = new Set(activeBreaks.map((b) => `${b.day}_${b.period}`));
 
     const startMap = new Map<string, TimetableEntry>();
     const spanned = new Set<string>();
@@ -1380,7 +1383,7 @@ function TimetableView() {
                           teachers={teachers}
                           classes={classes}
                           classrooms={classrooms}
-                          breaks={settings.breaks ?? []}
+                          breaks={activeBreaks}
                           onSwap={handleSwap}
                           onMove={handleMove}
                           canEdit={true}
