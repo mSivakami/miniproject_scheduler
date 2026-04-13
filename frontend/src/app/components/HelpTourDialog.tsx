@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
-import { BookMarked, Calendar, Clock, Zap, Save, Info, BookOpen, Users, School, DoorOpen, Settings, ChevronRight, Check, Plus, Target, Sparkles } from 'lucide-react';
+import { BookMarked, Calendar, Clock, Zap, Save, Info, BookOpen, Users, School, DoorOpen, Settings, ChevronRight, Check, Plus, Target, Sparkles, Sliders, Layers, Coffee, ArrowLeftRight, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface HelpTourDialogProps {
@@ -11,7 +11,7 @@ interface HelpTourDialogProps {
 
 export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
   const [step, setStep] = useState(1);
-  const totalSteps = 8;
+  const totalSteps = 10;
 
   const handleClose = () => {
     setStep(1);
@@ -71,6 +71,8 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
                       { icon: Calendar, text: 'Understanding time-off availability matrices', color: 'green' },
                       { icon: BookMarked, text: 'Creating lessons with flexible session types', color: 'indigo' },
                       { icon: Save, text: 'Save All workflow and why it matters', color: 'orange' },
+                      { icon: Sliders, text: 'Tuning scheduling constraints for better results', color: 'violet' },
+                      { icon: Layers, text: 'Using Mini Groups for isolated sub-schedules', color: 'teal' },
                       { icon: Zap, text: 'How the Genetic Algorithm generates timetables', color: 'purple' },
                     ].map((item, i) => (
                       <div key={i} className="flex items-start gap-3">
@@ -86,7 +88,7 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
                 <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-900/40">
                   <div className="flex items-center gap-2">
                     <Info className="w-5 h-5 text-blue-600" />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Takes about 5 minutes</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Takes about 7 minutes</span>
                   </div>
                   <span className="text-xs text-gray-500 dark:text-gray-400">Step 1 of {totalSteps}</span>
                 </div>
@@ -205,22 +207,10 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
                     </div>
                     <p className="text-sm text-gray-700 dark:text-gray-200 mb-2">Add your teaching staff with:</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="flex items-center gap-1">
-                        <Check className="w-3 h-3 text-green-600" />
-                        <span>Full Name</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Check className="w-3 h-3 text-green-600" />
-                        <span>Short Name</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Check className="w-3 h-3 text-green-600" />
-                        <span>Color Code</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Check className="w-3 h-3 text-green-600" />
-                        <span>Availability</span>
-                      </div>
+                      <div className="flex items-center gap-1"><Check className="w-3 h-3 text-green-600" /><span>Full Name</span></div>
+                      <div className="flex items-center gap-1"><Check className="w-3 h-3 text-green-600" /><span>Short Name</span></div>
+                      <div className="flex items-center gap-1"><Check className="w-3 h-3 text-green-600" /><span>Color Code</span></div>
+                      <div className="flex items-center gap-1"><Check className="w-3 h-3 text-green-600" /><span>Availability</span></div>
                     </div>
                   </div>
 
@@ -232,18 +222,9 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
                     </div>
                     <p className="text-sm text-gray-700 dark:text-gray-200 mb-2">Student groups that need scheduling:</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="flex items-center gap-1">
-                        <Check className="w-3 h-3 text-violet-600" />
-                        <span>Class Name</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Check className="w-3 h-3 text-violet-600" />
-                        <span>Short Name</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Check className="w-3 h-3 text-violet-600" />
-                        <span>Availability</span>
-                      </div>
+                      <div className="flex items-center gap-1"><Check className="w-3 h-3 text-violet-600" /><span>Class Name</span></div>
+                      <div className="flex items-center gap-1"><Check className="w-3 h-3 text-violet-600" /><span>Short Name</span></div>
+                      <div className="flex items-center gap-1"><Check className="w-3 h-3 text-violet-600" /><span>Availability</span></div>
                     </div>
                   </div>
 
@@ -255,22 +236,10 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
                     </div>
                     <p className="text-sm text-gray-700 dark:text-gray-200 mb-2">Physical rooms and labs:</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="flex items-center gap-1">
-                        <Check className="w-3 h-3 text-amber-600" />
-                        <span>Room Name</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Check className="w-3 h-3 text-amber-600" />
-                        <span>Type (Room/Lab)</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Check className="w-3 h-3 text-amber-600" />
-                        <span>Building</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Check className="w-3 h-3 text-amber-600" />
-                        <span>Availability</span>
-                      </div>
+                      <div className="flex items-center gap-1"><Check className="w-3 h-3 text-amber-600" /><span>Room Name</span></div>
+                      <div className="flex items-center gap-1"><Check className="w-3 h-3 text-amber-600" /><span>Type (Room/Lab)</span></div>
+                      <div className="flex items-center gap-1"><Check className="w-3 h-3 text-amber-600" /><span>Building</span></div>
+                      <div className="flex items-center gap-1"><Check className="w-3 h-3 text-amber-600" /><span>Availability</span></div>
                     </div>
                   </div>
                 </div>
@@ -318,9 +287,7 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
                   </p>
                   
                   <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-green-100">
-                    <div className="mb-2">
-                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Example: Teacher Availability</p>
-                    </div>
+                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Example: Teacher Availability</p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
@@ -342,9 +309,7 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
                                 return (
                                   <td key={day} className="p-2">
                                     <div className={`h-8 rounded flex items-center justify-center font-semibold ${
-                                      isAvailable 
-                                        ? 'bg-green-200 text-green-800' 
-                                        : 'bg-red-200 text-red-800'
+                                      isAvailable ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
                                     }`}>
                                       {isAvailable ? '✓' : '✕'}
                                     </div>
@@ -357,14 +322,8 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
                       </table>
                     </div>
                     <div className="mt-3 flex items-center gap-4 text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 bg-green-200 rounded" />
-                        <span className="text-gray-600 dark:text-gray-300">Available</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 bg-red-200 rounded" />
-                        <span className="text-gray-600 dark:text-gray-300">Not Available</span>
-                      </div>
+                      <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-200 rounded" /><span className="text-gray-600 dark:text-gray-300">Available</span></div>
+                      <div className="flex items-center gap-2"><div className="w-4 h-4 bg-red-200 rounded" /><span className="text-gray-600 dark:text-gray-300">Not Available</span></div>
                     </div>
                   </div>
                 </div>
@@ -532,9 +491,7 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
 
                 <div className="p-4 bg-red-100 border-l-4 border-red-500 rounded-r-lg">
                   <p className="text-sm font-semibold text-red-900 mb-1">⚠️ Critical:</p>
-                  <p className="text-xs text-red-800">
-                    Always save before generating! The algorithm can't access unsaved changes.
-                  </p>
+                  <p className="text-xs text-red-800">Always save before generating! The algorithm can't access unsaved changes.</p>
                 </div>
               </div>
 
@@ -548,10 +505,170 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
             </motion.div>
           )}
 
-          {/* Step 7: Genetic Algorithm */}
+          {/* Step 7: Constraints — NEW */}
           {step === 7 && (
             <motion.div
               key="step7"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <DialogHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-3 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-xl">
+                    <Sliders className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-2xl">Scheduling Constraints 🎛️</DialogTitle>
+                    <DialogDescription>Fine-tune how the algorithm makes decisions</DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="py-6 space-y-4">
+                <div className="p-5 bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 rounded-xl border border-violet-200 dark:border-violet-800">
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-100 mb-3">What are Constraints?</h4>
+                  <p className="text-sm text-gray-700 dark:text-gray-200 mb-4">
+                    Constraints are rules the algorithm tries to respect when building timetables. You can turn each one on/off and set how strictly it's enforced.
+                  </p>
+
+                  <div className="space-y-2 mb-4">
+                    {[
+                      { id: 'S1', name: 'Teacher daily load', desc: 'Avoid overloading a teacher on any single day' },
+                      { id: 'S3', name: 'Repeat subject/day', desc: 'Don\'t schedule the same subject twice in one day for a class' },
+                      { id: 'S6', name: 'Subject distribution', desc: 'Spread subjects evenly across the week' },
+                      { id: 'S7', name: 'Avoid Friday labs', desc: 'Keep lab sessions away from Fridays' },
+                      { id: 'S10', name: 'Max 1 lab/day', desc: 'A class should have at most one lab session per day' },
+                    ].map((c) => (
+                      <div key={c.id} className="flex items-center gap-3 p-3 bg-white dark:bg-gray-900 rounded-lg border border-violet-100 dark:border-violet-900/40">
+                        <span className="text-xs font-bold text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 px-2 py-1 rounded w-10 text-center flex-shrink-0">{c.id}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{c.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{c.desc}</p>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          {['Min', 'Med', 'Hard', 'Strict'].map((lvl, i) => (
+                            <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded ${i === 1 ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>{lvl}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="text-xs text-gray-500 dark:text-gray-400 italic">...and 7 more constraints available on the Constraints page.</p>
+                </div>
+
+                <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Copy className="w-4 h-4 text-blue-600" />
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Shareable Constraint Mask</p>
+                  </div>
+                  <p className="text-sm text-gray-700 dark:text-gray-200">Your full constraint configuration is encoded into a single number called a <strong>mask digit</strong>. Copy it to share your exact settings with another user — they paste it in and get the same results instantly.</p>
+                </div>
+
+                <div className="flex items-start gap-3 p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+                  <Target className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-yellow-900 mb-1">Getting started tip:</p>
+                    <p className="text-sm text-yellow-800">Leave all constraints on at Medium intensity for your first generation. Adjust only if results feel off.</p>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="flex items-center justify-between">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Step {step} of {totalSteps}</span>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleBack}>← Back</Button>
+                  <Button onClick={handleNext}>Next →</Button>
+                </div>
+              </DialogFooter>
+            </motion.div>
+          )}
+
+          {/* Step 8: Mini Groups — NEW */}
+          {step === 8 && (
+            <motion.div
+              key="step8"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <DialogHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-3 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl">
+                    <Layers className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-2xl">Mini Groups 🗂️</DialogTitle>
+                    <DialogDescription>Create isolated sub-schedules for special batches</DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="py-6 space-y-4">
+                <div className="p-5 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/20 rounded-xl border border-teal-200 dark:border-teal-800">
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-100 mb-3">What are Mini Groups?</h4>
+                  <p className="text-sm text-gray-700 dark:text-gray-200 mb-4">
+                    Mini Groups let you build a completely separate timetable for a special batch — like a remedial class, elective cluster, or lab rotation — without mixing it into the main schedule.
+                  </p>
+
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    {[
+                      { icon: Calendar, label: 'Own grid', desc: 'Custom days × periods', color: 'teal' },
+                      { icon: Layers, label: 'Isolated lessons', desc: 'Separate from main', color: 'cyan' },
+                      { icon: ArrowLeftRight, label: 'Import & create', desc: 'Copy or add new lessons', color: 'blue' },
+                    ].map((item, i) => (
+                      <div key={i} className="flex flex-col items-center text-center p-3 bg-white dark:bg-gray-900 rounded-lg border border-teal-100 dark:border-teal-900/40 gap-2">
+                        <item.icon className="w-5 h-5 text-teal-600" />
+                        <p className="text-xs font-semibold text-gray-800 dark:text-gray-100">{item.label}</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400">{item.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-teal-100 dark:border-teal-900/40">
+                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-3">Creating a group takes 7 quick steps:</p>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {['Setup', 'Subjects', 'Teachers', 'Rooms', 'Classes', 'Lessons', 'Review'].map((stage, i, arr) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <span className="text-xs bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 px-2 py-1 rounded font-medium">{stage}</span>
+                          {i < arr.length - 1 && <span className="text-gray-400 text-xs">→</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Coffee className="w-4 h-4 text-amber-600" />
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Break Map</p>
+                  </div>
+                  <p className="text-sm text-gray-700 dark:text-gray-200">Each group has its own break structure. Click cells in the break grid to mark them as break periods — they'll be excluded from lesson scheduling for that group.</p>
+                </div>
+
+                <div className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-900/40">
+                  <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-gray-700 dark:text-gray-200">You can create up to <strong>3 mini groups</strong>. Each generates its own timetable independently from the main schedule.</p>
+                </div>
+              </div>
+
+              <DialogFooter className="flex items-center justify-between">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Step {step} of {totalSteps}</span>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleBack}>← Back</Button>
+                  <Button onClick={handleNext}>Next →</Button>
+                </div>
+              </DialogFooter>
+            </motion.div>
+          )}
+
+          {/* Step 9: Genetic Algorithm (was step 7) */}
+          {step === 9 && (
+            <motion.div
+              key="step9"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -577,75 +694,34 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
                   </p>
                   
                   <div className="space-y-3">
-                    <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-purple-100">
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <span className="text-lg">🧬</span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-purple-900 mb-1">1. Population</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-300">Creates multiple random timetable variations (e.g., 50-100 schedules)</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-purple-100">
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <span className="text-lg">⭐</span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-purple-900 mb-1">2. Fitness Evaluation</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-300">Scores each timetable based on constraints (no conflicts, availability, etc.)</p>
+                    {[
+                      { emoji: '🧬', title: '1. Population', desc: 'Creates multiple random timetable variations (e.g., 50-100 schedules)' },
+                      { emoji: '⭐', title: '2. Fitness Evaluation', desc: 'Scores each timetable based on constraints (no conflicts, availability, etc.)' },
+                      { emoji: '🔄', title: '3. Evolution', desc: 'Uses crossover and mutation to create better schedules over generations' },
+                      { emoji: '🏆', title: '4. Best Solution', desc: 'After many generations, returns the optimal timetable' },
+                    ].map((item, i) => (
+                      <div key={i} className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-purple-100">
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="text-lg">{item.emoji}</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-purple-900 mb-1">{item.title}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-300">{item.desc}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-purple-100">
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <span className="text-lg">🔄</span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-purple-900 mb-1">3. Evolution</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-300">Uses crossover and mutation to create better schedules over generations</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-purple-100">
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <span className="text-lg">🏆</span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-purple-900 mb-1">4. Best Solution</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-300">After many generations, returns the optimal timetable</p>
-                        </div>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
 
                 <div className="bg-purple-100 p-4 rounded-lg">
                   <p className="text-sm font-semibold text-purple-900 mb-2">Configurable Parameters:</p>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="bg-white dark:bg-gray-900 p-2 rounded">
-                      <p className="font-semibold text-gray-800 dark:text-gray-100">Population Size</p>
-                      <p className="text-gray-600 dark:text-gray-300">50-200 schedules</p>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900 p-2 rounded">
-                      <p className="font-semibold text-gray-800 dark:text-gray-100">Generations</p>
-                      <p className="text-gray-600 dark:text-gray-300">100-1000 cycles</p>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900 p-2 rounded">
-                      <p className="font-semibold text-gray-800 dark:text-gray-100">Mutation Rate</p>
-                      <p className="text-gray-600 dark:text-gray-300">0.01-0.1 (1-10%)</p>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900 p-2 rounded">
-                      <p className="font-semibold text-gray-800 dark:text-gray-100">Crossover Rate</p>
-                      <p className="text-gray-600 dark:text-gray-300">0.7-0.9 (70-90%)</p>
-                    </div>
+                    <div className="bg-white dark:bg-gray-900 p-2 rounded"><p className="font-semibold text-gray-800 dark:text-gray-100">Population Size</p><p className="text-gray-600 dark:text-gray-300">50-200 schedules</p></div>
+                    <div className="bg-white dark:bg-gray-900 p-2 rounded"><p className="font-semibold text-gray-800 dark:text-gray-100">Generations</p><p className="text-gray-600 dark:text-gray-300">100-1000 cycles</p></div>
+                    <div className="bg-white dark:bg-gray-900 p-2 rounded"><p className="font-semibold text-gray-800 dark:text-gray-100">Mutation Rate</p><p className="text-gray-600 dark:text-gray-300">0.01-0.1 (1-10%)</p></div>
+                    <div className="bg-white dark:bg-gray-900 p-2 rounded"><p className="font-semibold text-gray-800 dark:text-gray-100">Crossover Rate</p><p className="text-gray-600 dark:text-gray-300">0.7-0.9 (70-90%)</p></div>
                   </div>
                 </div>
               </div>
@@ -660,10 +736,10 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
             </motion.div>
           )}
 
-          {/* Step 8: Settings & Tips */}
-          {step === 8 && (
+          {/* Step 10: Settings & Tips (was step 8) */}
+          {step === 10 && (
             <motion.div
-              key="step8"
+              key="step10"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -713,6 +789,8 @@ export function HelpTourDialog({ open, onOpenChange }: HelpTourDialogProps) {
                       'Save frequently to avoid losing work',
                       'Start with sample data to learn the interface',
                       'Adjust GA parameters if generation takes too long',
+                      'Use Mini Groups for remedial or elective batches',
+                      'Share your constraint mask with teammates for consistent results',
                     ].map((tip, i) => (
                       <div key={i} className="flex items-start gap-2">
                         <div className="w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
