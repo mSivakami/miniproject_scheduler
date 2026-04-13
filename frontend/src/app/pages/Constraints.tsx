@@ -114,8 +114,13 @@ export function Constraints() {
   };
 
   return (
-    <PageWrapper title="Scheduling Constraints" description="Configure evolutionary weights and share constraint masks with other users.">
-        <div className="flex flex-col xl:flex-row gap-8">
+    <PageWrapper>
+        <div className="flex-1 flex flex-col p-8 gap-6 max-w-7xl mx-auto w-full">
+            <div className="flex flex-col gap-1 mb-2">
+                <h1 className="text-2xl font-bold tracking-tight">Scheduling Constraints</h1>
+                <p className="text-sm text-muted-foreground italic">Configure evolutionary weights and share constraint masks with other users.</p>
+            </div>
+            <div className="flex flex-col xl:flex-row gap-8">
             {/* Left Column: Constraints List */}
             <div className="flex-1 space-y-6">
                 <Card className="border-primary/10 shadow-sm">
@@ -238,6 +243,7 @@ export function Constraints() {
                         Encoded masks include your penalty levels for all 12 constraints. When shared, they ensure identical Timetable generation results across different user accounts.
                     </p>
                 </div>
+            </div>
             </div>
         </div>
     </PageWrapper>
