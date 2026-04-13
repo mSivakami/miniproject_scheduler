@@ -113,6 +113,37 @@ def rename_timetable(
     return {"message": "Renamed", "name": name}
 
 
+@router.put("/{timetable_id}", response_model=TimetableOut)
+def update_timetable(
+    timetable_id: str,
+    data: TimetableSave,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Overwrite an existing timetable's JSON and metrics."""
+    inst = get_or_create_institution(db)
+    tt = (
+        db.query(GeneratedTimetable)
+        .filter(
+            GeneratedTimetable.id == timetable_id,
+            GeneratedTimetable.institution_id == inst.id,
+        )
+        .first()
+    )
+    if not tt:
+        raise HTTPException(404, "Timetable not found")
+
+    tt.name = data.name
+    tt.timetable_json = data.timetable_json
+    tt.fitness_score = data.fitness_score
+    tt.hard_violations = data.hard_violations
+    tt.soft_violations = data.soft_violations
+
+    db.commit()
+    db.refresh(tt)
+    return tt
+
+
 @router.delete("/{timetable_id}")
 def delete_timetable(
     timetable_id: str,

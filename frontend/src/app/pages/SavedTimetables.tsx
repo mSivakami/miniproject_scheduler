@@ -272,7 +272,12 @@ export function SavedTimetables() {
         });
       }
 
-      restoreGeneration(timetable);
+      restoreGeneration({
+          ...timetable,
+          snapshot_id: item.id,
+          snapshot_name: item.name,
+      });
+
       toast.success(`"${item.name}" loaded to timetable view.`);
       setRestoreId(null);
     } catch (err) {

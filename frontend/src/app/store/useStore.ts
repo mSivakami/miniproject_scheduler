@@ -311,11 +311,14 @@ export interface GenerationState {
   violationDetails: ViolationDetail[];
   gaGenerations: number | null;
   gaStatus: string | null;
+  isModified?: boolean;
   timetable: {
     timetable_id: string;
     fitness: number;
     entries: TimetableEntry[];
     generation_time_seconds: number | null;
+    snapshot_id?: string;
+    snapshot_name?: string;
   } | null;
 }
 
@@ -612,6 +615,7 @@ const emptyGeneration: GenerationState = {
   lessonsPlaced: null, totalLessons: null,
   preflightOk: null, preflightErrors: [], preflightWarnings: [],
   violationDetails: [], gaGenerations: null, gaStatus: null,
+  isModified: false,
   timetable: null,
 };
 
@@ -696,6 +700,7 @@ export const useStore = create<AppState>()(
                 })),
                 gaGenerations: result.generations,
                 gaStatus: result.status,
+                isModified: false,
                 timetable: {
                   timetable_id: ttId, fitness: result.fitness,
                   entries, generation_time_seconds: result.time_ms / 1000,
@@ -730,6 +735,7 @@ export const useStore = create<AppState>()(
               totalLessons: result.entries.length,
               preflightOk: true, preflightErrors: [], preflightWarnings: [],
               violationDetails: [], gaGenerations: null, gaStatus: 'local',
+              isModified: false,
               timetable: {
                 timetable_id: result.timetableId, fitness: result.fitness,
                 entries: result.entries, generation_time_seconds: result.generationTime,
@@ -748,6 +754,7 @@ export const useStore = create<AppState>()(
         return {
           generation: {
             ...s.generation,
+            isModified: true,
             timetable: {
               ...s.generation.timetable,
               entries: s.generation.timetable.entries.map(e => e.id === entryId ? updated : e),
@@ -774,6 +781,7 @@ export const useStore = create<AppState>()(
           violationDetails: [],
           gaGenerations: null,
           gaStatus: null,
+          isModified: false,
           timetable,
         } : emptyGeneration,
       }),

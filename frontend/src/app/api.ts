@@ -217,6 +217,9 @@ export const api = {
   saveTimetable(data: { name: string; timetable_json: string; fitness_score?: number; hard_violations?: number; soft_violations?: number }): Promise<TimetableOut> {
     return request('POST', api_url('/api/timetables'), data);
   },
+  updateTimetable(id: string, data: { name: string; timetable_json: string; fitness_score?: number; hard_violations?: number; soft_violations?: number }): Promise<TimetableOut> {
+    return request('PUT', api_url(`/api/timetables/${id}`), data);
+  },
   deleteTimetable(id: string): Promise<void> {
     return request('DELETE', api_url(`/api/timetables/${id}`));
   },

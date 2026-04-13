@@ -570,6 +570,9 @@ function TimetableView() {
   const [selectedEntityId, setSelectedEntityId] = useState("all");
   const [isSaving, setIsSaving] = useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [duplicatePromptOpen, setDuplicatePromptOpen] = useState(false);
+  const [matchedSnapshotId, setMatchedSnapshotId] = useState<string | null>(null);
+  const [matchedSnapshotName, setMatchedSnapshotName] = useState<string>("");
   const [snapshotName, setSnapshotName] = useState("");
   const numDays = parseInt(settings.numberOfDays) || 5;
   const numPeriods = parseInt(settings.periodsPerDay) || 7;
@@ -659,8 +662,112 @@ function TimetableView() {
     }
   };
 
-  const handleSaveSnapshot = () => {
+  const handleSaveSnapshot = async () => {
     if (!generation.timetable) return;
+
+    setIsSaving(true);
+    let isDupe = false;
+    let dupeId: string | null = null;
+    let dupeName: string = "";
+
+    try {
+      if (backendAvailable) {
+        const existingServerTimetables = await api.listTimetables();
+        for (const t of existingServerTimetables) {
+           const detail = await api.getTimetable(t.id);
+           try {
+              const parsed = JSON.parse(detail.timetable_json);
+              if (parsed.timetable_id === generation.timetable.timetable_id) {
+                 isDupe = true;
+                 dupeId = t.id;
+                 dupeName = t.name;
+                 break;
+               }
+           } catch { continue; }
+        }
+      } else {
+        const LOCAL_STORAGE_KEY = "autoscheduler_saved_timetables";
+        const existing = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
+        for (const item of existing) {
+           try {
+              const parsed = JSON.parse(item.timetableJson);
+              if (parsed.timetable_id === generation.timetable.timetable_id) {
+                 isDupe = true;
+                 dupeId = item.id;
+                 dupeName = item.name;
+                 break;
+              }
+           } catch { continue; }
+        }
+      }
+    } catch {}
+    
+    setIsSaving(false);
+
+    if (isDupe) {
+       if (generation.isModified) {
+          setMatchedSnapshotId(dupeId);
+          setMatchedSnapshotName(dupeName);
+          setDuplicatePromptOpen(true);
+       } else {
+          toast.error("This timetable has already been saved.");
+       }
+       return;
+    }
+
+    setSnapshotName(generation.timetable.snapshot_name || defaultSnapshotName());
+    setIsSaveDialogOpen(true);
+  };
+
+  const handleOverwrite = async () => {
+    setDuplicatePromptOpen(false);
+    if (!generation.timetable || !matchedSnapshotId) return;
+    
+    const snapshotPayload = {
+      ...generation.timetable,
+      grid_settings: {
+        numberOfDays: settings.numberOfDays,
+        periodsPerDay: settings.periodsPerDay,
+        breakAfterPeriod: settings.breakAfterPeriod,
+        breaks: settings.breaks,
+      },
+    };
+
+    setIsSaving(true);
+    try {
+      if (backendAvailable) {
+        await api.updateTimetable(matchedSnapshotId, {
+          name: matchedSnapshotName || "Snapshot",
+          timetable_json: JSON.stringify(snapshotPayload),
+          fitness_score: generation.timetable.fitness,
+          hard_violations: generation.hardViolations ?? 0,
+          soft_violations: generation.softViolations ?? 0,
+        });
+      } else {
+        const LOCAL_STORAGE_KEY = "autoscheduler_saved_timetables";
+        const existing = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
+        const idx = existing.findIndex((e: any) => e.id === matchedSnapshotId);
+        if (idx !== -1) {
+          existing[idx].fitness = generation.timetable.fitness;
+          existing[idx].timetableJson = JSON.stringify(snapshotPayload);
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(existing));
+        }
+      }
+      toast.success("Snapshot overwritten.");
+      useStore.setState({ generation: { ...useStore.getState().generation, isModified: false } });
+    } catch (err) {
+      toast.error("Failed to overwrite snapshot.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAsNewFromPrompt = () => {
+    setDuplicatePromptOpen(false);
+    if (generation.timetable) {
+      generation.timetable.timetable_id = crypto.randomUUID();
+      generation.timetable.snapshot_id = undefined;
+    }
     setSnapshotName(defaultSnapshotName());
     setIsSaveDialogOpen(true);
   };
@@ -682,30 +789,6 @@ function TimetableView() {
     setIsSaving(true);
     try {
       if (backendAvailable) {
-        // Fetch existing timetables to check for duplicates
-        const existingServerTimetables = await api.listTimetables();
-        
-        let isDuplicate = false;
-        for (const t of existingServerTimetables) {
-           const detail = await api.getTimetable(t.id);
-           try {
-              const parsed = JSON.parse(detail.timetable_json);
-              if (parsed.timetable_id === generation.timetable?.timetable_id) {
-                 isDuplicate = true;
-                 break;
-              }
-           } catch {
-              continue;
-           }
-        }
-
-        if (isDuplicate) {
-           toast.error("This timetable has already been saved.");
-           setIsSaveDialogOpen(false);
-           setIsSaving(false);
-           return;
-        }
-
         await api.saveTimetable({
           name,
           timetable_json: JSON.stringify(snapshotPayload),
@@ -716,24 +799,6 @@ function TimetableView() {
       } else {
         const LOCAL_STORAGE_KEY = "autoscheduler_saved_timetables";
         const existing = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
-        
-        // Check for duplicates
-        const isDuplicate = existing.some((item: any) => {
-          try {
-             const parsed = JSON.parse(item.timetableJson);
-             return parsed.timetable_id === generation.timetable?.timetable_id;
-          } catch {
-             return false;
-          }
-        });
-
-        if (isDuplicate) {
-           toast.error("This timetable has already been saved.");
-           setIsSaveDialogOpen(false);
-           setIsSaving(false);
-           return;
-        }
-
         const newEntry = {
           id: crypto.randomUUID(),
           savedAt: new Date().toISOString(),
@@ -746,6 +811,10 @@ function TimetableView() {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([newEntry, ...existing].slice(0, 5)));
       }
       toast.success("Snapshot saved. View it in Saved Timetables.");
+      useStore.setState({ generation: { ...useStore.getState().generation, isModified: false } });
+      if (generation.timetable) {
+         generation.timetable.snapshot_name = name;
+      }
       setIsSaveDialogOpen(false);
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Failed to save snapshot.";
@@ -1180,11 +1249,6 @@ function TimetableView() {
           <div className="flex gap-2">
             {generation.timetable && (
               <>
-                {undoStack.length > 0 && (
-                  <Button onClick={handleUndo} variant="outline" size="sm" className="gap-1.5 border-dashed border-muted-foreground/30 text-muted-foreground">
-                    <Undo2 className="w-4 h-4" /> Undo
-                  </Button>
-                )}
                 <Button onClick={handleExportPDF} variant="outline" size="sm" className="gap-1.5">
                   <FileDown className="w-4 h-4" /> Export PDF
                 </Button>
@@ -1233,8 +1297,16 @@ function TimetableView() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                  <CardTitle className="text-base">Generated Timetable</CardTitle>
-                  <CardDescription className="text-xs mt-0.5 flex items-center gap-1">
+                  <div className="flex items-center gap-3">
+                    <CardTitle className="text-base">Generated Timetable</CardTitle>
+                    {undoStack.length > 0 && (
+                      <Button onClick={handleUndo} variant="secondary" size="sm" className="h-7 gap-1 text-xs px-2.5">
+                        <Undo2 className="w-3.5 h-3.5" /> Undo
+                        <span className="opacity-60 ml-1">({undoStack.length})</span>
+                      </Button>
+                    )}
+                  </div>
+                  <CardDescription className="text-xs mt-1.5 flex items-center gap-1">
                     <GripVertical className="w-3 h-3" />
                     Drag onto another lesson to swap. Drag to an empty cell to move.
                   </CardDescription>
@@ -1339,6 +1411,23 @@ function TimetableView() {
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Save
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={duplicatePromptOpen} onOpenChange={setDuplicatePromptOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Modified Timetable</DialogTitle>
+            <DialogDescription>
+              This timetable has been manually modified after loading. Would you like to overwrite the existing saved snapshot "{matchedSnapshotName}", or save it as a new snapshot?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-between flex-row">
+            <Button variant="outline" onClick={() => setDuplicatePromptOpen(false)}>Cancel</Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={handleSaveAsNewFromPrompt}>Save as New</Button>
+              <Button onClick={handleOverwrite} disabled={isSaving}>Overwrite</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
