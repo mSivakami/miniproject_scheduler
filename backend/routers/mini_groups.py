@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from database import get_db, get_or_create_institution
-from models import MiniGroup
+from models import MiniGroup, ConstraintSettings
 from schemas import MiniGroupCreate, MiniGroupOut
 from services.bitmask_service import compute_break_mask, compute_working_mask
 
@@ -48,9 +48,16 @@ def create_mini_group(data: MiniGroupCreate, db: Session = Depends(get_db)):
         selected_room_ids=data.selected_room_ids,
         selected_subject_ids=data.selected_subject_ids,
     )
-    if data.id:
-        obj.id = data.id
     db.add(obj)
+    db.flush() # ensure obj.id
+
+    # Create associated ConstraintSettings
+    db.add(ConstraintSettings(
+        institution_id=inst.id,
+        mini_group_id=obj.id,
+        constraint_mask=data.constraint_mask or 0
+    ))
+
     db.commit()
     db.refresh(obj)
     return obj
@@ -79,6 +86,13 @@ def update_mini_group(group_id: str, data: MiniGroupCreate, db: Session = Depend
     obj.working_slot_mask = str(compute_working_mask(
         obj.days_per_week, obj.periods_per_day, int(obj.break_mask)
     ))
+
+    # Update associated ConstraintSettings
+    c_settings = db.query(ConstraintSettings).filter(ConstraintSettings.mini_group_id == obj.id).first()
+    if not c_settings:
+        c_settings = ConstraintSettings(institution_id=obj.institution_id, mini_group_id=obj.id)
+        db.add(c_settings)
+    c_settings.constraint_mask = data.constraint_mask or 0
 
     db.commit()
     db.refresh(obj)

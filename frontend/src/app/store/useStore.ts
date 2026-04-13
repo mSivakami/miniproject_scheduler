@@ -720,9 +720,10 @@ export const useStore = create<AppState>()(
           try {
             let result: GenerateResponse;
             if (groupId) {
-              result = await api.generateMini(groupId, { constraint_mask: 376335849471 });
+              const group = s.groups.find(g => g.id === groupId);
+              result = await api.generateMini(groupId, { constraint_mask: group?.constraint_mask ?? 0 });
             } else {
-              result = await api.generate({ constraint_mask: 376335849471 });
+              result = await api.generate({ constraint_mask: Number(s.settings.constraintMask || "376335849471") });
             }
             const entries = convertBackendTimetable(result, s);
             const ttId = `gen_${Date.now()}`;

@@ -177,12 +177,14 @@ export interface MiniGroupCreate {
   selected_class_ids?: string;
   selected_room_ids?: string;
   selected_subject_ids?: string;
+  constraint_mask?: number;
 }
 
 export interface MiniGroupOut extends MiniGroupCreate {
   id: string;
   break_mask: string;
   working_slot_mask: string;
+  constraint_mask: number;
   created_at: string;
 }
 
