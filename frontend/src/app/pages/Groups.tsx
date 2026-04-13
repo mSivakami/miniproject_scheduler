@@ -20,33 +20,7 @@ import { Badge } from "../components/ui/badge";
 
 const MAX_GROUPS = 6;
 
-const SOFT_CONSTRAINTS = [
-  { id: "S1", name: "Teacher daily load", desc: "Penalize excess periods per day for teachers" },
-  { id: "S2", name: "Difficult last period", desc: "Avoid major subjects in the final slot" },
-  { id: "S3", name: "Repeat subject/day", desc: "Penalize same subject appearing twice for a class" },
-  { id: "S4", name: "Class schedule gaps", desc: "Penalize free periods between active lessons" },
-  { id: "S5", name: "Max consecutive", desc: "Respect max consecutive periods for teachers" },
-  { id: "S6", name: "Subject distribution", desc: "Evening spread of subjects across weekdays" },
-  { id: "S7", name: "Avoid Friday Labs", desc: "Penalize lab sessions assigned to Friday" },
-  { id: "S8", name: "Consec. distinct blocks", desc: "Avoid back-to-back different subject blocks" },
-  { id: "S9", name: "Pack lessons early", desc: "Prefer earlier days (Mon-Thu) over Friday/Sat" },
-  { id: "S10", name: "Max 1 lab/day", desc: "Ensure classes don't have multiple labs in one day" },
-  { id: "S11", name: "First period empty", desc: "Penalize gaps in the first period for classes" },
-  { id: "lab", name: "Avoid morning lab", desc: "Prefer labs outside the first two periods" },
-];
-
-const INTENSITY_WEIGHTS = [
-    [0.3, 0.2, 0.2, 0.5, 0.2, 0.3, 0.1, 0.3, 0.2, 0.5,  0.8, 0.2], // minimal
-    [1.0, 0.8, 0.7, 2.0, 0.5, 1.2, 0.3, 1.0, 0.8, 2.0,  3.0, 0.5], // medium
-    [2.0, 1.5, 1.5, 4.0, 1.0, 2.5, 0.7, 2.0, 1.5, 4.0,  6.0, 1.0], // hard
-    [4.0, 3.0, 3.0, 8.0, 2.0, 5.0, 1.5, 4.0, 3.0, 8.0, 12.0, 2.0], // very strict
-];
-
-const PRESETS = {
-  default: { mask: "366503872447", name: "Balanced Default" },
-  strict: { mask: "1099511627775", name: "Maximum Strictness" },
-  hardOnly: { mask: "0", name: "Hard Constraints Only" },
-};
+// none
 
 export function Groups() {
   const { teachers, classes, classrooms, groups, subjects, fetchGroups, updateGroup, deleteGroup, settings, lessons, addLesson } = useStore();
@@ -73,12 +47,6 @@ export function Groups() {
   const [draftCopiedLessons, setDraftCopiedLessons] = useState<Set<string>>(new Set());
   const [draftNewLessons, setDraftNewLessons] = useState<any[]>([]);
 
-  // Constraints State
-  const [constraintEnables, setConstraintEnables] = useState<boolean[]>(new Array(12).fill(true));
-  const [constraintIntensities, setConstraintIntensities] = useState<number[]>(new Array(12).fill(1)); // 0-3
-  const [mcp, setMcp] = useState(3);
-  const [ldg, setLdg] = useState(1);
-  const [manualMaskInput, setManualMaskInput] = useState("");
 
   // Draft New Lesson inline form
   const [isDraftLessonOpen, setIsDraftLessonOpen] = useState(false);
@@ -112,16 +80,17 @@ export function Groups() {
     
     setDraftCopiedLessons(new Set());
     setDraftNewLessons([]);
-    decodeToState(group.constraint_mask?.toString() || "0");
     setActiveTab("setup");
     setIsCreateOpen(true);
   };
 
   const handleSave = async () => {
-    if (!formName.trim()) { toast.error("Group name is required"); return; }
-    
+    if (!formName.trim()) {
+      toast.error("Group name is required");
+      return;
+    }
+
     try {
-      const mask = calculateMask();
       const data = {
         name: formName.trim(),
         selected_teacher_ids: JSON.stringify(selectedTeachers),
@@ -129,7 +98,7 @@ export function Groups() {
         selected_room_ids: JSON.stringify(selectedRooms),
         selected_subject_ids: JSON.stringify(selectedSubjects),
         teacher_time_off_overrides: JSON.stringify(draftTimeOffs),
-        constraint_mask: Number(mask),
+        constraint_mask: 0,
       };
 
       let groupId = editingGroupId;
@@ -138,7 +107,10 @@ export function Groups() {
         await updateGroup(editingGroupId, data);
         toast.success(`Group "${data.name}" updated`);
       } else {
-        if (groups.length >= MAX_GROUPS) { toast.error(`Maximum ${MAX_GROUPS} groups allowed`); return; }
+        if (groups.length >= MAX_GROUPS) {
+          toast.error(`Maximum ${MAX_GROUPS} groups allowed`);
+          return;
+        }
         const res = await api.createMiniGroup(data);
         groupId = res.id;
         toast.success(`Group "${data.name}" created`);
@@ -146,28 +118,28 @@ export function Groups() {
 
       // Handle drafted lessons (new and copied)
       if (groupId) {
-         const toCopy = lessons.filter(l => draftCopiedLessons.has(l.id));
-         for (const l of toCopy) {
-            addLesson({ ...l, mini_group_id: groupId });
-         }
-         if (toCopy.length > 0) toast.success(`Copied ${toCopy.length} lesson(s) to group`);
+        const toCopy = lessons.filter((l) => draftCopiedLessons.has(l.id));
+        for (const l of toCopy) {
+          addLesson({ ...l, mini_group_id: groupId });
+        }
+        if (toCopy.length > 0) toast.success(`Copied ${toCopy.length} lesson(s) to group`);
 
-         for (const form of draftNewLessons) {
-            addLesson({
-              subject_id: form.subject_id,
-              teacher_ids: form.teacher_ids,
-              class_ids: form.class_ids,
-              room_ids: form.room_ids,
-              sessions: form.sessions,
-              is_locked: form.is_locked,
-              locked_day: form.is_locked ? form.locked_day : null,
-              locked_start_period: form.is_locked ? form.locked_start_period - 1 : null,
-              locked_duration: form.is_locked ? form.locked_duration : null,
-              mini_group_id: groupId
-            });
-         }
-         if (draftNewLessons.length > 0) toast.success(`Created ${draftNewLessons.length} new group-specific lesson(s)`);
-         await fetchGroups(); // sync just in case
+        for (const form of draftNewLessons) {
+          addLesson({
+            subject_id: form.subject_id,
+            teacher_ids: form.teacher_ids,
+            class_ids: form.class_ids,
+            room_ids: form.room_ids,
+            sessions: form.sessions,
+            is_locked: form.is_locked,
+            locked_day: form.is_locked ? form.locked_day : null,
+            locked_start_period: form.is_locked ? form.locked_start_period - 1 : null,
+            locked_duration: form.is_locked ? form.locked_duration : null,
+            mini_group_id: groupId,
+          });
+        }
+        if (draftNewLessons.length > 0) toast.success(`Created ${draftNewLessons.length} new group-specific lesson(s)`);
+        await fetchGroups(); // sync just in case
       }
 
       setIsCreateOpen(false);
@@ -223,49 +195,9 @@ export function Groups() {
         mask |= 1n << slot;
       }
     }
-
-  // --- Mask Logic ---
-  const calculateMask = () => {
-    let mask = 0n;
-    // Flags 0-11
-    for (let i = 0; i < 12; i++) {
-        if (constraintEnables[i]) mask |= (1n << BigInt(i));
-    }
-    // Intensities 12-35
-    for (let i = 0; i < 12; i++) {
-        const level = BigInt(constraintIntensities[i] & 3);
-        mask |= (level << BigInt(12 + i * 2));
-    }
-    // Tuning 36-39
-    mask |= (BigInt(mcp & 3) << 36n);
-    mask |= (BigInt(ldg & 3) << 38n);
-    return mask;
+    setDraftTimeOffs(prev => ({ ...prev, [teacher.id]: mask.toString() }));
+    setIsTimeOffDialogOpen(false);
   };
-
-  const decodeToState = (maskStr: string) => {
-    let mask: bigint;
-    try { mask = BigInt(maskStr); } catch { mask = 0n; }
-    
-    const enables = new Array(12).fill(false);
-    for (let i = 0; i < 12; i++) {
-        if ((mask & (1n << BigInt(i))) !== 0n) enables[i] = true;
-    }
-    setConstraintEnables(enables);
-
-    const levels = new Array(12).fill(0);
-    for (let i = 0; i < 12; i++) {
-        levels[i] = Number((mask >> BigInt(12 + i * 2)) & 3n);
-    }
-    setConstraintIntensities(levels);
-
-    setMcp(Number((mask >> 36n) & 3n));
-    setLdg(Number((mask >> 38n) & 3n));
-    setManualMaskInput(maskStr);
-  };
-
-  const currentMask = useMemo(() => calculateMask(), [constraintEnables, constraintIntensities, mcp, ldg]);
-  const maskHex = useMemo(() => "0x" + currentMask.toString(16).toUpperCase(), [currentMask]);
-  const maskBin = useMemo(() => currentMask.toString(2).padStart(40, '0').match(/.{1,4}/g)?.join(' ') || "", [currentMask]);
 
   // --- Draft Lesson Form Logic ---
   const handleAddDraftLesson = () => {
@@ -340,11 +272,10 @@ export function Groups() {
             </DialogHeader>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col mt-2">
-               <TabsList className="grid w-full grid-cols-4 shrink-0">
+               <TabsList className="grid w-full grid-cols-3 shrink-0">
                   <TabsTrigger value="setup">1. Setup Tools</TabsTrigger>
                   <TabsTrigger value="timeoff" disabled={selectedTeachers.length === 0}>2. Time-Offs</TabsTrigger>
                   <TabsTrigger value="lessons">3. Lessons</TabsTrigger>
-                  <TabsTrigger value="constraints">4. Constraints</TabsTrigger>
                </TabsList>
 
                {/* TAB 1: SETUP */}
@@ -464,177 +395,6 @@ export function Groups() {
                     )}
                   </div>
                 </TabsContent>
-
-               {/* TAB 4: CONSTRAINTS (Mask Encoder) */}
-               <TabsContent value="constraints" className="flex-1 overflow-y-auto pr-2 mt-4 flex flex-col gap-6">
-                  <div className="flex gap-6 items-start">
-                      {/* Left side: Soft Constraints List */}
-                      <div className="flex-1 space-y-4">
-                          <div className="flex items-center justify-between mb-2">
-                             <h4 className="text-sm font-semibold flex items-center gap-2"><Sliders className="w-4 h-4" /> Soft Constraints List</h4>
-                             <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider opacity-60">Genetic Algorithm Integrated</Badge>
-                          </div>
-                          
-                          <div className="space-y-4 pr-1">
-                              {SOFT_CONSTRAINTS.map((sc, idx) => {
-                                  const intensity = constraintIntensities[idx];
-                                  const weight = INTENSITY_WEIGHTS[intensity][idx];
-                                  const isOn = constraintEnables[idx];
-                                  
-                                  return (
-                                    <div key={sc.id} className={cn("p-3 border rounded-lg bg-card/50 transition-all", !isOn && "opacity-40 grayscale-[0.5]")}>
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="flex flex-col">
-                                                <span className="text-xs font-bold text-muted-foreground mr-2">{sc.id}</span>
-                                                <span className="text-sm font-semibold">{sc.name}</span>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className={cn("text-xs font-mono font-bold", isOn ? "text-emerald-500" : "text-muted-foreground")}>{isOn ? "ACTIVE" : "OFF"}</span>
-                                                <Switch checked={isOn} onCheckedChange={(v) => {
-                                                    const next = [...constraintEnables];
-                                                    next[idx] = v;
-                                                    setConstraintEnables(next);
-                                                }} />
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="space-y-3">
-                                            <div className="flex items-center justify-between gap-4">
-                                                <div className="flex-1">
-                                                    <Slider 
-                                                        disabled={!isOn}
-                                                        value={[intensity]} 
-                                                        min={0} max={3} step={1} 
-                                                        onValueChange={([v]) => {
-                                                            const next = [...constraintIntensities];
-                                                            next[idx] = v;
-                                                            setConstraintIntensities(next);
-                                                        }}
-                                                        className={cn("transition-colors", isOn && "data-[disabled]:opacity-100")}
-                                                    />
-                                                </div>
-                                                <div className="w-20 text-right">
-                                                    <Badge variant="secondary" className={cn("text-[10px] uppercase", 
-                                                        intensity === 0 ? "bg-blue-500/10 text-blue-500" :
-                                                        intensity === 1 ? "bg-emerald-500/10 text-emerald-500" :
-                                                        intensity === 2 ? "bg-orange-500/10 text-orange-500" : "bg-red-500/10 text-red-500"
-                                                    )}>
-                                                        {["Minimal", "Medium", "Hard", "Strict"][intensity]}
-                                                    </Badge>
-                                                </div>
-                                            </div>
-                                            <div className="flex justify-between items-center text-[10px] text-muted-foreground">
-                                                <p className="max-w-[180px] leading-tight italic">{sc.desc}</p>
-                                                <div className="flex items-center gap-1">
-                                                    <span>Weight value:</span>
-                                                    <span className="font-mono text-foreground font-bold">{weight.toFixed(1)}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                  )
-                              })}
-                          </div>
-                      </div>
-
-                      {/* Right side: Sidebar (Tuning & Presets) */}
-                      <div className="w-64 space-y-5 sticky top-0 shrink-0">
-                          <div className="p-4 border rounded-xl bg-muted/30 space-y-4">
-                              <h5 className="text-xs font-bold uppercase tracking-widest opacity-70">Global Tuning</h5>
-                              <div className="space-y-3">
-                                  <div className="space-y-1">
-                                      <Label className="text-[10px] font-bold">Max Consecutive Periods (S5)</Label>
-                                      <Select value={mcp.toString()} onValueChange={(v) => setMcp(parseInt(v))}>
-                                          <SelectTrigger className="h-8 text-xs font-bold"><SelectValue /></SelectTrigger>
-                                          <SelectContent>
-                                              {[2,3,4,5].map(v => <SelectItem key={v} value={v.toString()}>{v} Periods</SelectItem>)}
-                                          </SelectContent>
-                                      </Select>
-                                  </div>
-                                  <div className="space-y-1">
-                                      <Label className="text-[10px] font-bold">Last Day Gap (S9)</Label>
-                                      <Select value={ldg.toString()} onValueChange={(v) => setLdg(parseInt(v))}>
-                                          <SelectTrigger className="h-8 text-xs font-bold"><SelectValue /></SelectTrigger>
-                                          <SelectContent>
-                                              {[0,1,2,3].map(v => <SelectItem key={v} value={v.toString()}>{v} Day(s)</SelectItem>)}
-                                          </SelectContent>
-                                      </Select>
-                                  </div>
-                              </div>
-                          </div>
-
-                          <div className="p-4 border border-emerald-500/20 rounded-xl bg-emerald-500/[0.03] space-y-4">
-                              <h5 className="text-xs font-bold text-emerald-500 uppercase tracking-widest flex justify-between items-center">
-                                  Mask Encoder <Box className="w-3 h-3" />
-                              </h5>
-                              <div className="space-y-2">
-                                  <div className="space-y-1">
-                                      <Label className="text-[10px] font-bold opacity-70">Encoded Integer</Label>
-                                      <div className="p-2 border rounded bg-background font-mono text-sm break-all font-bold shadow-sm">{currentMask.toString()}</div>
-                                  </div>
-                                  <div className="flex gap-2">
-                                      <div className="flex-1 space-y-1">
-                                          <Label className="text-[10px] font-bold opacity-70">Hex Code</Label>
-                                          <div className="px-2 py-1 border rounded bg-background font-mono text-[10px] truncate opacity-80">{maskHex}</div>
-                                      </div>
-                                  </div>
-                                  <div className="space-y-1">
-                                      <Label className="text-[10px] font-bold opacity-70">Binary String</Label>
-                                      <div className="px-2 py-1 border rounded bg-background font-mono text-[9px] break-all leading-tight opacity-60 tracking-tighter">{maskBin}</div>
-                                  </div>
-                              </div>
-                          </div>
-
-                          <div className="space-y-2">
-                              <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-60 ml-1">Intensity Presets</h5>
-                              <div className="grid grid-cols-1 gap-1.5">
-                                  {Object.entries(PRESETS).map(([key, p]) => (
-                                      <Button key={key} variant="outline" size="sm" className="h-8 text-[10px] font-bold justify-start gap-2 hover:bg-primary/5 hover:border-primary/30" onClick={() => decodeToState(p.mask)}>
-                                          <PlusCircle className="w-3 h-3 text-primary" /> {p.name}
-                                      </Button>
-                                  ))}
-                              </div>
-                          </div>
-
-                          <div className="space-y-1.5 pt-2 border-t">
-                              <Label className="text-[10px] font-bold opacity-70 ml-1">Manual Decoder Input</Label>
-                              <div className="flex gap-1.5">
-                                  <Input value={manualMaskInput} onChange={(e) => setManualMaskInput(e.target.value)} placeholder="Paste mask..." className="h-7 text-xs font-mono" />
-                                  <Button size="sm" variant="secondary" className="h-7 px-2" onClick={() => decodeToState(manualMaskInput)}><RefreshCcw className="w-3 h-3"/></Button>
-                              </div>
-                              <p className="text-[9px] text-muted-foreground italic px-1">Paste a mask integer to reverse-engineer settings</p>
-                          </div>
-                      </div>
-                  </div>
-
-                  {/* Hardcoded Weight Table */}
-                  <div className="pt-6 border-t">
-                      <h5 className="text-xs font-bold uppercase tracking-widest mb-3 opacity-70 flex items-center gap-2"><Info className="w-3.5 h-3.5" /> Hardcoded Intensity Weight Reference Table</h5>
-                      <div className="border rounded-xl overflow-hidden shadow-sm">
-                          <Table className="text-[10px]">
-                              <TableHeader className="bg-muted/80 font-bold uppercase">
-                                  <TableRow>
-                                      <TableHead className="h-8 w-24">Constraint</TableHead>
-                                      <TableHead className="h-8">Minimal (00)</TableHead>
-                                      <TableHead className="h-8">Medium (01)</TableHead>
-                                      <TableHead className="h-8">Hard (10)</TableHead>
-                                      <TableHead className="h-8">Strict (11)</TableHead>
-                                  </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                  {SOFT_CONSTRAINTS.map((sc, idx) => (
-                                      <TableRow key={sc.id} className="hover:bg-muted/30 font-medium">
-                                          <TableCell className="py-1.5 font-bold">{sc.id} {sc.name}</TableCell>
-                                          {INTENSITY_WEIGHTS.map((level, lIdx) => (
-                                              <TableCell key={lIdx} className="py-1.5 font-mono opacity-80">{level[idx].toFixed(1)}</TableCell>
-                                          ))}
-                                      </TableRow>
-                                  ))}
-                              </TableBody>
-                          </Table>
-                      </div>
-                  </div>
-               </TabsContent>
             </Tabs>
 
             <DialogFooter className="mt-4 pt-4 border-t shrink-0">

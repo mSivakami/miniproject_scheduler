@@ -10,6 +10,7 @@ import { Timetable } from "./pages/Timetable";
 import { Settings } from "./pages/Settings";
 import { SavedTimetables } from "./pages/SavedTimetables";
 import { Groups } from "./pages/Groups";
+import { Constraints } from "./pages/Constraints";
 
 function LoadingUI() {
   return (
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
       { path: "timetable", Component: Timetable },
       { path: "saved-timetables", Component: SavedTimetables },
       { path: "groups", Component: Groups },
+      { path: "constraints", Component: Constraints },
       { path: "settings", Component: Settings },
     ],
   },

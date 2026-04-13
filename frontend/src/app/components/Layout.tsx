@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router";
 import { Toaster, toast } from "sonner";
-import { BookOpen, Users, School, DoorOpen, BookMarked, Calendar, Settings, GraduationCap, Save, Sun, Moon, Archive, Layers, LogOut, Wifi, WifiOff } from "lucide-react";
+import { BookOpen, Users, School, DoorOpen, BookMarked, Calendar, Settings, GraduationCap, Save, Sun, Moon, Archive, Layers, LogOut, Wifi, WifiOff, Sliders } from "lucide-react";
 import { OnboardingDialog } from "./OnboardingDialog";
 import { useStore } from "../store/useStore";
 import { Button } from "./ui/button";
@@ -22,6 +22,7 @@ export function Layout() {
     { icon: Calendar,   label: "Timetable",  path: "/timetable" },
     { icon: Archive,    label: "Saved",      path: "/saved-timetables" },
     { icon: Layers,     label: "Groups",     path: "/groups" },
+    { icon: Sliders,    label: "Constraints", path: "/constraints" },
     { icon: Settings,   label: "Settings",   path: "/settings" },
   ];
   const visibleNavItems = navItems;
