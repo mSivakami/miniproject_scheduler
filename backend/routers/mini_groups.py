@@ -11,21 +11,29 @@ from database import get_db, get_or_create_institution
 from models import MiniGroup, ConstraintSettings
 from schemas import MiniGroupCreate, MiniGroupOut
 from services.bitmask_service import compute_break_mask, compute_working_mask
+from routers.auth import CurrentUser, get_current_user
 
 router = APIRouter(tags=["Mini Groups"])
 
 
 @router.get("", response_model=List[MiniGroupOut])
-def list_mini_groups(db: Session = Depends(get_db)):
-    """List all mini-groups (max 2)."""
-    inst = get_or_create_institution(db)
+def list_mini_groups(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """List all mini-groups (max 6)."""
+    inst = get_or_create_institution(db, current_user.id)
     return db.query(MiniGroup).filter(MiniGroup.institution_id == inst.id).all()
 
 
 @router.post("", response_model=MiniGroupOut)
-def create_mini_group(data: MiniGroupCreate, db: Session = Depends(get_db)):
-    """Create a new mini-group. Enforces max 2 per institution."""
-    inst = get_or_create_institution(db)
+def create_mini_group(
+    data: MiniGroupCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Create a new mini-group. Enforces max 6 per institution."""
+    inst = get_or_create_institution(db, current_user.id)
     count = db.query(MiniGroup).filter(MiniGroup.institution_id == inst.id).count()
     if count >= 6:
         raise HTTPException(400, "Maximum of 6 mini-groups allowed.")
@@ -72,10 +80,20 @@ def create_mini_group(data: MiniGroupCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{group_id}", response_model=MiniGroupOut)
-def update_mini_group(group_id: str, data: MiniGroupCreate, db: Session = Depends(get_db)):
+def update_mini_group(
+    group_id: str,
+    data: MiniGroupCreate,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    inst = get_or_create_institution(db, current_user.id)
     obj = db.query(MiniGroup).filter(MiniGroup.id == group_id).first()
     if not obj:
         raise HTTPException(404, "Mini-group not found")
+
+    # Ownership validation
+    if obj.institution_id != inst.id:
+        raise HTTPException(403, "You do not have access to this mini-group")
 
     obj.name = data.name
     obj.slot_index = data.slot_index
@@ -116,10 +134,20 @@ def update_mini_group(group_id: str, data: MiniGroupCreate, db: Session = Depend
 
 
 @router.delete("/{group_id}")
-def delete_mini_group(group_id: str, db: Session = Depends(get_db)):
+def delete_mini_group(
+    group_id: str,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    inst = get_or_create_institution(db, current_user.id)
     obj = db.query(MiniGroup).filter(MiniGroup.id == group_id).first()
     if not obj:
         raise HTTPException(404, "Mini-group not found")
+
+    # Ownership validation
+    if obj.institution_id != inst.id:
+        raise HTTPException(403, "You do not have access to this mini-group")
+
     db.delete(obj)
     db.commit()
     return {"message": "Deleted"}

@@ -50,12 +50,10 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/auth")
 
 # ── Protected routes (JWT required) ───────────────────────────────────────
-app.include_router(data.router,       prefix="/api/data")
-app.include_router(timetables.router, prefix="/api/timetables")
-
-_protected = {"dependencies": [Depends(get_current_user)]}
-app.include_router(generate.router,    prefix="/api/generate",    **_protected)
-app.include_router(mini_groups.router, prefix="/api/mini-groups", **_protected)
+app.include_router(data.router,        prefix="/api/data")
+app.include_router(timetables.router,  prefix="/api/timetables")
+app.include_router(generate.router,    prefix="/api/generate")
+app.include_router(mini_groups.router, prefix="/api/mini-groups")
 
 # ── Startup ────────────────────────────────────────────────────────────────
 @app.on_event("startup")

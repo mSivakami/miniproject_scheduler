@@ -13,18 +13,23 @@ from database import get_db, get_or_create_institution
 from models import Institution, Teacher, Subject, Room, Classroom, LessonBlock, ConstraintSettings
 from schemas import GenerateRequest, GenerateResponse
 from services.ga_bridge import run_ga_from_db
+from routers.auth import CurrentUser, get_current_user
 
 router = APIRouter(tags=["Generate"])
 
 
 @router.post("/main", response_model=GenerateResponse)
-def generate_main(req: GenerateRequest = GenerateRequest(), db: Session = Depends(get_db)):
+def generate_main(
+    req: GenerateRequest = GenerateRequest(),
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """
     Run the GA synchronously and return the result.
     No job queue, no polling — the HTTP request blocks until completion.
     Typical time: 3-15 seconds depending on problem size.
     """
-    inst = get_or_create_institution(db)
+    inst = get_or_create_institution(db, current_user.id)
 
     # Load all data in bulk (eager loading, single query per table)
     teachers = db.query(Teacher).filter(Teacher.institution_id == inst.id).all()
@@ -80,17 +85,28 @@ def generate_main(req: GenerateRequest = GenerateRequest(), db: Session = Depend
 
 
 @router.post("/mini/{group_id}", response_model=GenerateResponse)
-def generate_mini(group_id: str, req: GenerateRequest = GenerateRequest(), db: Session = Depends(get_db)):
+def generate_mini(
+    group_id: str,
+    req: GenerateRequest = GenerateRequest(),
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """Run the GA synchronously for a mini-group."""
     from models import MiniGroup
+    inst = get_or_create_institution(db, current_user.id)
+
     group = db.query(MiniGroup).filter(MiniGroup.id == group_id).first()
     if not group:
         raise HTTPException(404, "Mini-group not found")
 
-    teachers = db.query(Teacher).filter(Teacher.institution_id == group.institution_id).all()
-    subjects = db.query(Subject).filter(Subject.institution_id == group.institution_id).all()
-    rooms = db.query(Room).filter(Room.institution_id == group.institution_id).all()
-    classrooms = db.query(Classroom).filter(Classroom.institution_id == group.institution_id).all()
+    # Ownership validation
+    if group.institution_id != inst.id:
+        raise HTTPException(403, "You do not have access to this mini-group")
+
+    teachers = db.query(Teacher).filter(Teacher.institution_id == inst.id).all()
+    subjects = db.query(Subject).filter(Subject.institution_id == inst.id).all()
+    rooms = db.query(Room).filter(Room.institution_id == inst.id).all()
+    classrooms = db.query(Classroom).filter(Classroom.institution_id == inst.id).all()
     
     lesson_blocks = (
         db.query(LessonBlock)
@@ -135,12 +151,15 @@ def generate_mini(group_id: str, req: GenerateRequest = GenerateRequest(), db: S
 
 
 @router.post("/preflight/main")
-def preflight_check_main(db: Session = Depends(get_db)):
+def preflight_check_main(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """
     Run pre-flight validation only (no GA execution).
     Returns feasibility status and any warnings/errors.
     """
-    inst = get_or_create_institution(db)
+    inst = get_or_create_institution(db, current_user.id)
 
     teachers = db.query(Teacher).filter(Teacher.institution_id == inst.id).all()
     classrooms = db.query(Classroom).filter(Classroom.institution_id == inst.id).all()

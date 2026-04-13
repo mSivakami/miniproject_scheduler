@@ -36,6 +36,7 @@ def create_tables():
     """Create all tables (idempotent — safe to call on every startup)."""
     Base.metadata.create_all(bind=engine)
     _migrate_schema()
+    _migrate_assign_existing_institution()
 
 
 def _migrate_schema():
@@ -56,15 +57,52 @@ def _migrate_schema():
             ))
             conn.commit()
 
+        # Check if account_id column exists on institutions
+        result = conn.execute(sa.text("PRAGMA table_info(institutions)"))
+        columns = {row[1] for row in result}
+        if "account_id" not in columns:
+            conn.execute(sa.text(
+                "ALTER TABLE institutions ADD COLUMN account_id VARCHAR REFERENCES accounts(id) ON DELETE SET NULL"
+            ))
+            conn.commit()
 
-def get_or_create_institution(db) -> 'Institution':
-    """Get the sole institution, or create one if none exists."""
+
+def _migrate_assign_existing_institution():
+    """
+    One-time idempotent migration: assign any institution with account_id IS NULL
+    to the first/oldest account (cs@gmail.com, id e7d0e485-e3b6-4b5a-8ad1-c04cae4c42f5).
+    Safe to run multiple times — only acts on rows where account_id IS NULL.
+    """
+    import sqlalchemy as sa
+
+    FIRST_ACCOUNT_ID = "e7d0e485-e3b6-4b5a-8ad1-c04cae4c42f5"
+
+    with engine.connect() as conn:
+        # Check if the target account exists
+        result = conn.execute(
+            sa.text("SELECT id FROM accounts WHERE id = :aid"),
+            {"aid": FIRST_ACCOUNT_ID},
+        )
+        if result.fetchone() is None:
+            return  # Account doesn't exist yet, skip
+
+        # Assign any unowned institutions to this account
+        conn.execute(
+            sa.text("UPDATE institutions SET account_id = :aid WHERE account_id IS NULL"),
+            {"aid": FIRST_ACCOUNT_ID},
+        )
+        conn.commit()
+
+
+def get_or_create_institution(db, account_id: str) -> 'Institution':
+    """Get the institution for a specific account, or create one if none exists."""
     from models import Institution
     from services.bitmask_service import compute_break_mask, compute_working_mask
-    inst = db.query(Institution).first()
+    inst = db.query(Institution).filter_by(account_id=account_id).first()
     if not inst:
         inst = Institution(
             name="My Institution",
+            account_id=account_id,
             days_per_week=5,
             periods_per_day=7,
             break_after_period=3

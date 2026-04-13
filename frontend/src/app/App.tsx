@@ -49,8 +49,9 @@ export default function App() {
     const user = await apiMe();
     setCurrentUser(user);
     setAuthStatus('signed-in');
-    // Explicitly bootstrap after login — the useEffect won't run if
-    // isBootstrapped is still true from a persisted previous session.
+    // Clear any stale data from a previous account session, then load
+    // the current account's data fresh from the backend.
+    useStore.setState({ isBootstrapped: false });
     bootstrap().catch(err => {
       console.warn('[bootstrap after login]', err);
     });

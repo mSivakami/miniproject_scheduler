@@ -38,18 +38,16 @@ export function AuthPage({ onSignedIn }: AuthPageProps) {
 
     try {
       if (mode === 'setup') {
-        await apiSetup(username.trim(), password);
-        setSuccess('Account created. Sign in with the account you just created.');
-        setPassword('');
-        setMode('login');
+        const response = await apiSetup(username.trim(), password);
+        setStoredToken(response.access_token);
+        await onSignedIn();
         return;
       }
 
       if (mode === 'register') {
-        await apiRegister(username.trim(), password);
-        setSuccess('Account created. Sign in with the account you just created.');
-        setPassword('');
-        setMode('login');
+        const response = await apiRegister(username.trim(), password);
+        setStoredToken(response.access_token);
+        await onSignedIn();
         return;
       }
 

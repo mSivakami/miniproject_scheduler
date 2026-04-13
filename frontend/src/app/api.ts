@@ -2,7 +2,7 @@
  * api.ts — All HTTP calls to the AutoScheduler FastAPI backend.
  * Routes match backend/main.py exactly.
  */
-import { getToken } from './auth/client';
+import { getToken, clearStoredToken } from './auth/client';
 
 const BASE = 'http://localhost:8000'; //import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -32,6 +32,13 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   });
 
   if (!res.ok) {
+    // Auto-handle 401: clear stale token and redirect to login
+    if (res.status === 401) {
+      clearStoredToken();
+      window.location.href = '/';
+      throw new ApiError(method, url, 401, 'Session expired — redirecting to login');
+    }
+
     const text = await res.text().catch(() => '');
     let detail = text;
     try { detail = JSON.parse(text).detail ?? text; } catch { }

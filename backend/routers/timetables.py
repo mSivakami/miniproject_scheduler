@@ -24,7 +24,7 @@ def list_timetables(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """List all saved timetables (without the full JSON payload)."""
-    inst = get_or_create_institution(db)
+    inst = get_or_create_institution(db, current_user.id)
     return (
         db.query(GeneratedTimetable)
         .filter(GeneratedTimetable.institution_id == inst.id)
@@ -40,7 +40,7 @@ def get_timetable(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Get a single saved timetable with full JSON data."""
-    inst = get_or_create_institution(db)
+    inst = get_or_create_institution(db, current_user.id)
     tt = (
         db.query(GeneratedTimetable)
         .filter(
@@ -63,7 +63,7 @@ def save_timetable(
     """
     Save a generated timetable. Enforces max 5 saved timetables per institution.
     """
-    inst = get_or_create_institution(db)
+    inst = get_or_create_institution(db, current_user.id)
 
     count = db.query(GeneratedTimetable).filter(
         GeneratedTimetable.institution_id == inst.id
@@ -97,7 +97,7 @@ def rename_timetable(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    inst = get_or_create_institution(db)
+    inst = get_or_create_institution(db, current_user.id)
     tt = (
         db.query(GeneratedTimetable)
         .filter(
@@ -121,7 +121,7 @@ def update_timetable(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Overwrite an existing timetable's JSON and metrics."""
-    inst = get_or_create_institution(db)
+    inst = get_or_create_institution(db, current_user.id)
     tt = (
         db.query(GeneratedTimetable)
         .filter(
@@ -150,7 +150,7 @@ def delete_timetable(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    inst = get_or_create_institution(db)
+    inst = get_or_create_institution(db, current_user.id)
     tt = (
         db.query(GeneratedTimetable)
         .filter(

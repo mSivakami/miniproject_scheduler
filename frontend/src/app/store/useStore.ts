@@ -903,32 +903,14 @@ export const useStore = create<AppState>()(
       completeOnboarding: () => set({ isFirstTime: false }),
 
       resetAllData: async () => {
-        const s = get();
-        
-        // 1. Clear Local State
+        // Clear local state only — data belongs to the account on the server
+        // and will be loaded fresh on next login via bootstrap().
         set({
           subjects: [], teachers: [], classes: [], classrooms: [], lessons: [], groups: [],
           generation: emptyGeneration,
           settings: defaultSettings,
           hasUnsavedChanges: false, isBootstrapped: false,
         });
-
-        // 2. Sync with Backend if available
-        if (s.backendAvailable) {
-          try {
-            // Delete all groups
-            for (const g of s.groups) {
-              await api.deleteMiniGroup(g.id);
-            }
-            // Send empty payload to clear main entities
-            await get().saveAll();
-          } catch (err) {
-            console.error('[resetAllData] backend cleanup failed:', err);
-          }
-        }
-        
-        // Re-bootstrap to ensure clean state
-        await get().bootstrap();
       },
     }),
     {

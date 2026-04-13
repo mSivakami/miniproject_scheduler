@@ -87,6 +87,7 @@ class Institution(Base):
     __tablename__ = "institutions"
 
     id               = Column(String, primary_key=True, default=gen_uuid)
+    account_id       = Column(String, ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True)
     name             = Column(String, nullable=False, default="My Institution")
     days_per_week    = Column(Integer, default=5)
     periods_per_day  = Column(Integer, default=7)
@@ -97,6 +98,7 @@ class Institution(Base):
     updated_at       = Column(DateTime, onupdate=func.now())
 
     # Relationships
+    account       = relationship("Account", backref="institutions")
     teachers      = relationship("Teacher", back_populates="institution", cascade="all, delete-orphan")
     classrooms    = relationship("Classroom", back_populates="institution", cascade="all, delete-orphan")
     subjects      = relationship("Subject", back_populates="institution", cascade="all, delete-orphan")

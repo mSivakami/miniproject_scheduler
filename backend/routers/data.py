@@ -77,7 +77,7 @@ def get_all_data(
     All other entities (teachers, subjects, rooms, classrooms) are always returned in full
     as they are shared across main and mini-group schedules.
     """
-    inst = get_or_create_institution(db)
+    inst = get_or_create_institution(db, current_user.id)
 
     # Core entities — always the full institution pool
     teachers = db.query(Teacher).filter(Teacher.institution_id == inst.id).all()
@@ -140,7 +140,7 @@ def sync_all_data(
     - Omit it (default) to sync main lesson blocks.
     - Core entities (teachers, subjects, rooms, classrooms) are always synced institution-wide.
     """
-    inst = get_or_create_institution(db)
+    inst = get_or_create_institution(db, current_user.id)
 
     # Determine the effective scope for lesson block operations
     effective_mini_group_id = mini_group_id
@@ -266,4 +266,4 @@ def sync_all_data(
     db.commit()
 
     # Return refreshed data for the same scope
-    return get_all_data(db=db, mini_group_id=effective_mini_group_id)
+    return get_all_data(db=db, current_user=current_user, mini_group_id=effective_mini_group_id)
