@@ -219,13 +219,25 @@ def _db_to_ga_structures(institution, teachers, subjects, rooms, classrooms, les
     periods = institution.periods_per_day
     break_after = institution.break_after_period
 
-    payload = _parse_constraint_payload(constraint_settings)
-
-    # Use custom break slots from saved settings when present. An empty array means "no breaks".
-    if "breaks" in payload:
-        break_slots = _normalize_break_slots(payload.get("breaks"), days, periods)
-    else:
-        break_slots = [(d, break_after) for d in range(days) if 0 <= break_after < periods]
+    break_slots = []
+    # If the DB model explicitly has a break_mask calculated, convert it into slots
+    has_db_mask = False
+    if hasattr(institution, "break_mask") and str(institution.break_mask).isdigit():
+        b_mask = int(institution.break_mask)
+        if b_mask > 0:
+            has_db_mask = True
+            for d in range(days):
+                for p in range(periods):
+                    if b_mask & (1 << (d * periods + p)):
+                        break_slots.append((d, p))
+            
+    if not has_db_mask:
+        payload = _parse_constraint_payload(constraint_settings)
+        # Use custom break slots from saved settings when present. An empty array means "no breaks".
+        if "breaks" in payload:
+            break_slots = _normalize_break_slots(payload.get("breaks"), days, periods)
+        else:
+            break_slots = [(d, break_after) for d in range(days) if 0 <= break_after < periods]
 
     inst_settings = InstitutionSettings(
         days=days,

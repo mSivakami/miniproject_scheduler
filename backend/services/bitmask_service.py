@@ -14,15 +14,26 @@ def bit_to_slot(bit: int, periods_per_day: int) -> tuple:
     return bit // periods_per_day, bit % periods_per_day
 
 
-def compute_break_mask(days: int, periods: int, break_after_period: int) -> int:
+def compute_break_mask(days: int, periods: int, break_after_period: int, custom_breaks: list = None) -> int:
     """
-    Compute break_mask given days, periods, and which period is the break.
-    break_after_period is 0-indexed: e.g. 3 means P3 (4th period) is a break.
+    Compute break_mask given days, periods, and custom breaks array.
+    If custom_breaks is provided, it uses those exact cells.
+    Otherwise, it uses break_after_period for every day.
     """
     mask = 0
-    for d in range(days):
-        bit = slot_to_bit(d, break_after_period, periods)
-        mask |= (1 << bit)
+    if isinstance(custom_breaks, list) and len(custom_breaks) > 0:
+        for b in custom_breaks:
+            if isinstance(b, dict):
+                d = b.get("day")
+                p = b.get("period")
+                if isinstance(d, int) and isinstance(p, int) and 0 <= d < days and 0 <= p < periods:
+                    bit = slot_to_bit(d, p, periods)
+                    mask |= (1 << bit)
+    else:
+        for d in range(days):
+            if 0 <= break_after_period < periods:
+                bit = slot_to_bit(d, break_after_period, periods)
+                mask |= (1 << bit)
     return mask
 
 

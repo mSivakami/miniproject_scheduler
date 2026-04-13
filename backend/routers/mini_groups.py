@@ -30,7 +30,15 @@ def create_mini_group(data: MiniGroupCreate, db: Session = Depends(get_db)):
     if count >= 6:
         raise HTTPException(400, "Maximum of 6 mini-groups allowed.")
 
-    b_mask = compute_break_mask(data.days_per_week, data.periods_per_day, data.break_after_period)
+    import json
+    custom_breaks = None
+    try:
+        overrides = json.loads(data.teacher_time_off_overrides or "{}")
+        custom_breaks = overrides.get("breaks")
+    except Exception:
+        pass
+
+    b_mask = compute_break_mask(data.days_per_week, data.periods_per_day, data.break_after_period, custom_breaks)
     w_mask = compute_working_mask(data.days_per_week, data.periods_per_day, b_mask)
 
     obj = MiniGroup(
@@ -80,8 +88,16 @@ def update_mini_group(group_id: str, data: MiniGroupCreate, db: Session = Depend
     obj.selected_room_ids = data.selected_room_ids
     obj.selected_subject_ids = data.selected_subject_ids
     
+    import json
+    custom_breaks = None
+    try:
+        overrides = json.loads(data.teacher_time_off_overrides or "{}")
+        custom_breaks = overrides.get("breaks")
+    except Exception:
+        pass
+        
     obj.break_mask = str(compute_break_mask(
-        obj.days_per_week, obj.periods_per_day, obj.break_after_period
+        obj.days_per_week, obj.periods_per_day, obj.break_after_period, custom_breaks
     ))
     obj.working_slot_mask = str(compute_working_mask(
         obj.days_per_week, obj.periods_per_day, int(obj.break_mask)
