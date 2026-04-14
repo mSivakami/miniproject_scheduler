@@ -204,47 +204,48 @@ def sync_all_data(
     db.flush()
 
     # 4. Sync Lesson Blocks scoped to main or mini-group
-    if data.lesson_blocks is not None:
-        # Default to 'main' if not provided
-        effective_mg_id = mini_group_id or "main"
-        
-        lb_query = db.query(LessonBlock).options(
+    # We query ALL lesson blocks for the institution to prevent ID collisions across scopes.
+    existing_lbs = (
+        db.query(LessonBlock)
+        .options(
             joinedload(LessonBlock.teachers),
             joinedload(LessonBlock.subjects),
             joinedload(LessonBlock.classrooms),
             joinedload(LessonBlock.rooms),
-        ).filter(LessonBlock.institution_id == inst.id)
+        )
+        .filter(LessonBlock.institution_id == inst.id)
+        .all()
+    )
+    existing_dict = {lb.id: lb for lb in existing_lbs}
 
-        if effective_mg_id == "main":
-            existing_lbs = lb_query.filter(LessonBlock.mini_group_id == None).all()
+    for item in data.lesson_blocks:
+        item_data = item.model_dump(
+            exclude={'id', 'teacher_ids', 'subject_ids', 'classroom_ids', 'room_ids'}
+        )
+        # Enforce scope if specified, otherwise respect payload
+        if effective_mini_group_id == "main":
+            item_data['mini_group_id'] = None
+        elif effective_mini_group_id is not None:
+            item_data['mini_group_id'] = effective_mini_group_id
+
+        if item.id and item.id in existing_dict:
+            lb = existing_dict.pop(item.id)
+            for k, v in item_data.items():
+                setattr(lb, k, v)
+            _resolve_relations(db, item, lb)
         else:
-            existing_lbs = lb_query.filter(LessonBlock.mini_group_id == effective_mg_id).all()
+            lb = LessonBlock(institution_id=inst.id, **item_data)
+            if item.id:
+                lb.id = item.id
+            _resolve_relations(db, item, lb)
+            db.add(lb)
 
-        existing_dict = {lb.id: lb for lb in existing_lbs}
-
-        for item in data.lesson_blocks:
-            item_data = item.model_dump(
-                exclude={'id', 'teacher_ids', 'subject_ids', 'classroom_ids', 'room_ids'}
-            )
-            # Enforce scope if specified, otherwise respect payload
-            if effective_mini_group_id == "main":
-                item_data['mini_group_id'] = None
-            elif effective_mini_group_id is not None:
-                item_data['mini_group_id'] = effective_mini_group_id
-
-            if item.id and item.id in existing_dict:
-                lb = existing_dict.pop(item.id)
-                for k, v in item_data.items():
-                    setattr(lb, k, v)
-                _resolve_relations(db, item, lb)
-            else:
-                lb = LessonBlock(institution_id=inst.id, **item_data)
-                if item.id:
-                    lb.id = item.id
-                _resolve_relations(db, item, lb)
-                db.add(lb)
-
-        for lb in existing_dict.values():
+    # Only delete lessons that were in the ORIGINAL requested scope and are now missing
+    for lb in existing_dict.values():
+        in_main_scope = (effective_mini_group_id == "main" and lb.mini_group_id is None)
+        in_group_scope = (effective_mini_group_id is not None and lb.mini_group_id == effective_mini_group_id)
+        
+        if in_main_scope or in_group_scope:
             db.delete(lb)
 
     # 5. Sync Constraint Settings (scoped same as lesson blocks)

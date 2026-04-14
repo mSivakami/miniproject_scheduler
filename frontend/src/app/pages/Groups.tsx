@@ -337,15 +337,15 @@ export function Groups() {
                 .filter(l => ids.includes(l.id))
                 .map(l => ({
                   ...l,
-                  id: `copy_${l.id}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                  id: `local_copy_${l.id}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
                   sessions: l.sessions.map(s => ({ ...s })),
                   teacher_ids: [...l.teacher_ids],
                   class_ids: [...l.class_ids],
                   room_ids: [...l.room_ids],
-                  mini_group_id: draft.id ?? undefined,
+                  mini_group_id: draft.id || undefined,
                 }));
               // Preserve any manually-added inline draft lessons (those not originating from import)
-              const manualDrafts = draftLessons.filter(dl => !dl.id.startsWith('copy_'));
+              const manualDrafts = draftLessons.filter(dl => !dl.id.startsWith('local_copy_'));
               setDraftLessons([...manualDrafts, ...copied]);
             }} renderItem={(l: Lesson) => renderLesson(l, subjects, teachers, classrooms, classes)} />
           </div>
