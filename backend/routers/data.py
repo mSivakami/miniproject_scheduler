@@ -86,6 +86,9 @@ def get_all_data(
     classrooms = db.query(Classroom).filter(Classroom.institution_id == inst.id).all()
 
     # Lesson blocks — filtered by mini_group_id param
+    # Default to 'main' (mini_group_id IS NULL) if not provided
+    effective_mg_id = mini_group_id or "main"
+    
     lb_query = (
         db.query(LessonBlock)
         .options(
@@ -96,18 +99,18 @@ def get_all_data(
         )
         .filter(LessonBlock.institution_id == inst.id)
     )
-    if mini_group_id == "main":
+    
+    if effective_mg_id == "main":
         lb_query = lb_query.filter(LessonBlock.mini_group_id == None)
-    elif mini_group_id:
-        lb_query = lb_query.filter(LessonBlock.mini_group_id == mini_group_id)
-    # else: fetch ALL lesson blocks unconditionally
+    else:
+        lb_query = lb_query.filter(LessonBlock.mini_group_id == effective_mg_id)
     
     lesson_blocks = lb_query.all()
 
     # Constraint Settings — scoped to the same mini_group_id
     settings = db.query(ConstraintSettings).filter(
         ConstraintSettings.institution_id == inst.id,
-        ConstraintSettings.mini_group_id == (None if mini_group_id in (None, "main") else mini_group_id),
+        ConstraintSettings.mini_group_id == (None if effective_mg_id == "main" else effective_mg_id),
     ).first()
 
     return {
@@ -202,6 +205,9 @@ def sync_all_data(
 
     # 4. Sync Lesson Blocks scoped to main or mini-group
     if data.lesson_blocks is not None:
+        # Default to 'main' if not provided
+        effective_mg_id = mini_group_id or "main"
+        
         lb_query = db.query(LessonBlock).options(
             joinedload(LessonBlock.teachers),
             joinedload(LessonBlock.subjects),
@@ -209,12 +215,10 @@ def sync_all_data(
             joinedload(LessonBlock.rooms),
         ).filter(LessonBlock.institution_id == inst.id)
 
-        if effective_mini_group_id == "main":
+        if effective_mg_id == "main":
             existing_lbs = lb_query.filter(LessonBlock.mini_group_id == None).all()
-        elif effective_mini_group_id is not None:
-            existing_lbs = lb_query.filter(LessonBlock.mini_group_id == effective_mini_group_id).all()
         else:
-            existing_lbs = lb_query.all()
+            existing_lbs = lb_query.filter(LessonBlock.mini_group_id == effective_mg_id).all()
 
         existing_dict = {lb.id: lb for lb in existing_lbs}
 
@@ -245,7 +249,8 @@ def sync_all_data(
 
     # 5. Sync Constraint Settings (scoped same as lesson blocks)
     if data.constraint_settings:
-        cs_group_id = None if effective_mini_group_id in (None, "main") else effective_mini_group_id
+        effective_mg_id = mini_group_id or "main"
+        cs_group_id = None if effective_mg_id == "main" else effective_mg_id
         cs = db.query(ConstraintSettings).filter(
             ConstraintSettings.institution_id == inst.id,
             ConstraintSettings.mini_group_id == cs_group_id,

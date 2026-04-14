@@ -550,31 +550,23 @@ function GenerationResultCards({
 
 function TimetableView() {
   const {
-    teachers,
-    classes,
-    classrooms,
-    subjects,
-    lessons,
-    groups,
-    fetchGroups,
-    generation,
-    settings,
-    startGeneration,
-    resetGeneration,
-    hasUnsavedChanges,
-    backendAvailable,
-    saveAll,
-    updateTimetableEntry,
+    lessons, subjects, teachers, classes, classrooms, settings, groups,
+    fetchGroups, loadScopedData,
+    generation, startGeneration, resetGeneration, restoreGeneration, updateTimetableEntry,
+    hasUnsavedChanges, backendAvailable, saveAll
   } = useStore();
 
-  const [viewMode, setViewMode] = useState<"teacher" | "class" | "classroom">("teacher");
+  useEffect(() => {
+    // Ensure we are in the main timetable scope
+    loadScopedData("main");
+    fetchGroups();
+  }, [loadScopedData, fetchGroups]);
+
+  const [viewMode, setViewMode] = useState<"teacher" | "class" | "classroom">("class");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationTarget, setGenerationTarget] = useState<string>("main");
   const [selectedEntityId, setSelectedEntityId] = useState("all");
 
-  useEffect(() => {
-    fetchGroups();
-  }, [fetchGroups]);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [duplicatePromptOpen, setDuplicatePromptOpen] = useState(false);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import React from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -25,8 +25,14 @@ export function Lessons() {
     addLesson, 
     updateLesson, 
     deleteLesson, 
-    deleteAllLessons 
+    deleteAllLessons,
+    loadScopedData
   } = useStore();
+  
+  useEffect(() => {
+    // Ensure we are viewing the main timetable scope when this page mounts
+    loadScopedData("main");
+  }, [loadScopedData]);
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);

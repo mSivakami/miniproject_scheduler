@@ -591,8 +591,8 @@ interface AppState {
   restoreGeneration: (timetable: GenerationState['timetable']) => void;
 
   updateSettings: (s: AppSettings) => void;
-  bootstrap: () => Promise<void>;
-  saveAll: () => Promise<void>;
+  loadScopedData: (groupId?: string) => Promise<void>;
+  saveAll: (miniGroupId?: string) => Promise<void>;
   markAsSaved: () => void;
   resetAllData: () => Promise<void>;
   completeOnboarding: () => void;
@@ -827,7 +827,8 @@ export const useStore = create<AppState>()(
         if (!up) return;
 
         try {
-          const data = await api.getAllData();
+          // Default bootstrap loads 'main' scope
+          const data = await api.getAllData('main');
           const mapped = mapAllData(data);
           set({ ...mapped, isBootstrapped: true, backendAvailable: true, hasUnsavedChanges: false });
         } catch (err) {
@@ -836,8 +837,20 @@ export const useStore = create<AppState>()(
         }
       },
 
+      loadScopedData: async (groupId) => {
+        if (!get().backendAvailable) return;
+        try {
+          const data = await api.getAllData(groupId || 'main');
+          const mapped = mapAllData(data);
+          set({ ...mapped, hasUnsavedChanges: false });
+        } catch (err) {
+          console.error('[loadScopedData] failed:', err);
+          toast.error("Failed to load data for this scope.");
+        }
+      },
+
       // ── Save all ──────────────────────────────────────────────────────
-      saveAll: async () => {
+      saveAll: async (miniGroupId) => {
         const s = get();
         const { numDays, numPeriods } = validateScheduleGrid(s.settings, s.backendAvailable);
         const breaks = normalizeBreaks(s.settings.breaks ?? [], numDays, numPeriods);
@@ -891,7 +904,7 @@ export const useStore = create<AppState>()(
         };
 
         try {
-          const data = await api.syncAllData(payload);
+          const data = await api.syncAllData(payload, miniGroupId);
           const mapped = mapAllData(data);
           set({ ...mapped, hasUnsavedChanges: false });
         } catch (err) {

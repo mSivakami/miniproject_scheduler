@@ -170,7 +170,7 @@ const renderLesson = (l: Lesson, subs: Subject[], teachs: Teacher[], rooms: Clas
 };
 
 export function Groups() {
-  const { teachers, classes, classrooms, groups, subjects, lessons, fetchGroups, updateGroup, deleteGroup, settings, addLesson, deleteLesson, saveAll } = useStore();
+  const { teachers, classes, classrooms, groups, subjects, lessons, fetchGroups, updateGroup, deleteGroup, settings, addLesson, deleteLesson, saveAll, loadScopedData } = useStore();
   const [view, setView] = useState<"list" | "wizard" | "edit">("list");
 
   // States for Wizard / Edit
@@ -197,9 +197,11 @@ export function Groups() {
     setImportedMainLessonIds([]);
     setWizardStage(1);
     setView("wizard");
+    // Ensure we are in 'main' scope before starting wizard (since we import from it)
+    loadScopedData("main");
   };
 
-  const handleEdit = (g: MiniGroupOut) => {
+  const handleEdit = async (g: MiniGroupOut) => {
     try {
       const overrides = JSON.parse(g.teacher_time_off_overrides || "{}");
       setDraft({
@@ -210,6 +212,8 @@ export function Groups() {
         selected_room_ids: JSON.parse(g.selected_room_ids || "[]"),
         selected_class_ids: JSON.parse(g.selected_class_ids || "[]")
       });
+      // Switch store to this mini-group's lessons context
+      await loadScopedData(g.id);
     } catch { setDraft(emptyDraft()); }
     setDraftLessons([]);
     setView("edit");
@@ -246,8 +250,12 @@ export function Groups() {
         addLesson({ ...rest, mini_group_id: groupId });
       }
 
-      await saveAll();
+      // Save using specific group scope
+      await saveAll(groupId);
 
+      // Revert store context back to 'main' lessons before returning to list
+      await loadScopedData("main");
+      
       setView("list");
       await fetchGroups();
     } catch (e: any) { toast.error(e.message || "Failed to save"); }
@@ -266,7 +274,7 @@ export function Groups() {
       setDraftLessons(prev => [...prev, nl]);
     } else {
       addLesson(nl);
-      saveAll().then(() => toast.success("Added directly to group lessons."));
+      saveAll(draft.id).then(() => toast.success("Added directly to group lessons."));
     }
     setInlineLesson({ subject_id: "", teacher_ids: [], room_ids: [], class_ids: [], sessions: [{ duration: 1, count: 1 }] });
   };
@@ -501,7 +509,10 @@ export function Groups() {
           <div className="px-6 flex items-center justify-between shrink-0 mb-4">
             <div className="flex items-center gap-3"><Layers className="w-5 h-5 text-muted-foreground" /><h1 className="text-xl font-semibold">Editing: {draft.name}</h1></div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setView("list")}>Cancel</Button>
+              <Button variant="outline" size="sm" onClick={() => {
+                setView("list");
+                loadScopedData("main"); // Revert scope
+              }}>Cancel</Button>
               <Button onClick={executeSave} size="sm" className="gap-2"><Save className="w-4 h-4" /> Save All Tabs</Button>
             </div>
           </div>
@@ -571,9 +582,9 @@ export function Groups() {
                           <Button variant="ghost" size="sm" className="p-1 h-7 text-primary" onClick={() => {
                             setInlineLesson({ subject_id: l.subject_id, teacher_ids: l.teacher_ids, room_ids: l.room_ids, class_ids: l.class_ids, sessions: [...l.sessions] });
                             deleteLesson(l.id);
-                            saveAll();
+                            saveAll(draft.id);
                           }}><SettingsIcon className="w-4 h-4" /></Button>
-                          <Button variant="ghost" size="sm" className="p-1 h-7 text-destructive" onClick={() => { deleteLesson(l.id); saveAll(); }}><Trash2 className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="sm" className="p-1 h-7 text-destructive" onClick={() => { deleteLesson(l.id); saveAll(draft.id); }}><Trash2 className="w-4 h-4" /></Button>
                         </div>
                       </div>
                     ))}
@@ -586,7 +597,7 @@ export function Groups() {
       )}
 
       {/* Creation Wizard Dialog */}
-      <Dialog open={view === "wizard"} onOpenChange={open => { if (!open) setView("list"); }}>
+      <Dialog open={view === "wizard"} onOpenChange={open => { if (!open) { setView("list"); loadScopedData("main"); } }}>
         <DialogContent className="sm:max-w-[95vw] md:max-w-[700px] w-[95vw] max-h-[90vh] h-[90vh] flex flex-col overflow-hidden outline-none">
           <DialogHeader className="shrink-0 flex flex-col border-b pb-4">
             <DialogTitle>Create Mini Group</DialogTitle>
