@@ -40,6 +40,31 @@ from ga_fitness import Chromosome, ConstraintSettings, evaluate, Gene
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Helper: display name via orig_* domain objects stored on ProblemData
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _teacher_label(data: "ProblemData", flat_teacher) -> str:
+    """Return the original Teacher's name, falling back to its flat id."""
+    orig = data.orig_teachers.get(flat_teacher.id)
+    name = getattr(orig, "name", None)
+    return name if name else flat_teacher.id
+
+
+def _room_label(data: "ProblemData", flat_room) -> str:
+    """Return the original Room's name, falling back to its flat id."""
+    orig = data.orig_rooms.get(flat_room.id)
+    name = getattr(orig, "name", None)
+    return name if name else flat_room.id
+
+
+def _class_label(data: "ProblemData", flat_class) -> str:
+    """Return the original Class's name, falling back to its flat id."""
+    orig = data.orig_classes.get(flat_class.id)
+    name = getattr(orig, "name", None)
+    return name if name else flat_class.id
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Pre-flight result
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -100,12 +125,16 @@ def preflight_check(data: ProblemData) -> PreflightResult:
 
         # P4a: Day/period within bounds
         if ld < 0 or ld >= days:
-            errors.append(f"Locked block {block.id} ({block.subject_name}): "
-                          f"day {ld} out of range [0, {days-1}]")
+            errors.append(
+                f"Locked block '{block.subject_name}': "
+                f"day {ld} out of range [0, {days-1}]"
+            )
             continue
         if lp < 0 or lp + dur > periods:
-            errors.append(f"Locked block {block.id} ({block.subject_name}): "
-                          f"period {lp}+{dur} overflows day (max period={periods-1})")
+            errors.append(
+                f"Locked block '{block.subject_name}': "
+                f"period {lp}+{dur} overflows day (max period={periods-1})"
+            )
             continue
 
         # P4b: All slots are working slots
@@ -113,24 +142,32 @@ def preflight_check(data: ProblemData) -> PreflightResult:
             slot = ld * periods + lp + off
             bit  = 1 << slot
             if bk_mask & bit:
-                errors.append(f"Locked block {block.id} ({block.subject_name}): "
-                               f"Day{ld+1} P{lp+off+1} is a break slot")
+                errors.append(
+                    f"Locked block '{block.subject_name}': "
+                    f"Day{ld+1} P{lp+off+1} is a break slot"
+                )
             if not (working & bit):
-                errors.append(f"Locked block {block.id} ({block.subject_name}): "
-                               f"Day{ld+1} P{lp+off+1} is not a working slot")
+                errors.append(
+                    f"Locked block '{block.subject_name}': "
+                    f"Day{ld+1} P{lp+off+1} is not a working slot"
+                )
 
             # Check Resource Availability (H3, H4)
             for ti in block.teacher_indices:
-                if not (data.teachers[ti].available_mask & bit):
+                teacher = data.teachers[ti]
+                if not (teacher.available_mask & bit):
                     warnings.append(
-                        f"Locked block {block.id} ({block.subject_name}): "
-                        f"Teacher {data.teachers[ti].id} is UNAVAILABLE at Day{ld+1} P{lp+off+1} (guaranteed hard violation)"
+                        f"Locked block '{block.subject_name}': "
+                        f"Teacher '{_teacher_label(data, teacher)}' is UNAVAILABLE at "
+                        f"Day{ld+1} P{lp+off+1} (guaranteed hard violation)"
                     )
             for ri in block.room_indices:
-                if not (data.rooms[ri].available_mask & bit):
+                room = data.rooms[ri]
+                if not (room.available_mask & bit):
                     warnings.append(
-                        f"Locked block {block.id} ({block.subject_name}): "
-                        f"Room {data.rooms[ri].id} is UNAVAILABLE at Day{ld+1} P{lp+off+1} (guaranteed hard violation)"
+                        f"Locked block '{block.subject_name}': "
+                        f"Room '{_room_label(data, room)}' is UNAVAILABLE at "
+                        f"Day{ld+1} P{lp+off+1} (guaranteed hard violation)"
                     )
 
         # P5: Clash detection between locked lessons
@@ -138,42 +175,54 @@ def preflight_check(data: ProblemData) -> PreflightResult:
             slot = ld * periods + lp + off
 
             for ti in block.teacher_indices:
+                teacher = data.teachers[ti]
                 s = locked_teacher_slots.setdefault(ti, set())
                 if slot in s:
-                    errors.append(f"Locked block {block.id}: teacher "
-                                  f"{data.teachers[ti].id} clash at Day{ld+1} P{lp+off+1}")
+                    errors.append(
+                        f"Locked block '{block.subject_name}': "
+                        f"Teacher '{_teacher_label(data, teacher)}' clash at Day{ld+1} P{lp+off+1}"
+                    )
                 s.add(slot)
 
             for ri in block.room_indices:
+                room = data.rooms[ri]
                 s = locked_room_slots.setdefault(ri, set())
                 if slot in s:
-                    errors.append(f"Locked block {block.id}: room "
-                                  f"{data.rooms[ri].id} clash at Day{ld+1} P{lp+off+1}")
+                    errors.append(
+                        f"Locked block '{block.subject_name}': "
+                        f"Room '{_room_label(data, room)}' clash at Day{ld+1} P{lp+off+1}"
+                    )
                 s.add(slot)
 
             for ci in block.class_indices:
+                cls_ = data.classes[ci]
                 s = locked_class_slots.setdefault(ci, set())
                 if slot in s:
-                    errors.append(f"Locked block {block.id}: class "
-                                  f"{data.classes[ci].id} clash at Day{ld+1} P{lp+off+1}")
+                    errors.append(
+                        f"Locked block '{block.subject_name}': "
+                        f"Class '{_class_label(data, cls_)}' clash at Day{ld+1} P{lp+off+1}"
+                    )
                 s.add(slot)
 
     # ── P1: Class period load vs available slots ──────────────────────────────
-    # Sum periods per class
     class_periods: dict = {}
     for block in data.blocks:
         for ci in block.class_indices:
             class_periods[ci] = class_periods.get(ci, 0) + block.duration * block.count
 
     for ci, total in class_periods.items():
+        cls_ = data.classes[ci]
         if total > total_working_slots:
             errors.append(
-                f"Class {data.classes[ci].id}: needs {total} periods "
-                f"but only {total_working_slots} working slots available")
+                f"Class '{_class_label(data, cls_)}': needs {total} periods "
+                f"but only {total_working_slots} working slots available"
+            )
         elif total > total_working_slots * 0.85:
             warnings.append(
-                f"Class {data.classes[ci].id}: {total}/{total_working_slots} "
-                f"slots used ({100*total/total_working_slots:.0f}%) — very tight schedule, possibility of a hard violation")
+                f"Class '{_class_label(data, cls_)}': {total}/{total_working_slots} "
+                f"slots used ({100*total/total_working_slots:.0f}%) — "
+                f"very tight schedule, possibility of a hard violation"
+            )
 
     # ── P2: Teacher load vs available slots ───────────────────────────────────
     teacher_periods: dict = {}
@@ -187,18 +236,22 @@ def preflight_check(data: ProblemData) -> PreflightResult:
 
         if total > avail_bits:
             errors.append(
-                f"Teacher {t.id}: assigned {total} periods "
-                f"but only {avail_bits} available slots")
+                f"Teacher '{_teacher_label(data, t)}': assigned {total} periods "
+                f"but only {avail_bits} available slots"
+            )
         elif total > t.max_per_week:
             warnings.append(
-                f"Teacher {t.id}: {total} periods assigned vs "
-                f"max_per_week={t.max_per_week}")
+                f"Teacher '{_teacher_label(data, t)}': {total} periods assigned vs "
+                f"max_per_week={t.max_per_week}"
+            )
         elif total > avail_bits * 0.85:
             warnings.append(
-                f"Teacher {t.id}: {total}/{avail_bits} available slots used "
-                f"({100*total/avail_bits:.0f}%) — very tight, possibility of a hard violation")
+                f"Teacher '{_teacher_label(data, t)}': {total}/{avail_bits} available slots used "
+                f"({100*total/avail_bits:.0f}%) — "
+                f"very tight, possibility of a hard violation"
+            )
 
-    # ── P2b: Room load vs available slots ───────────────────────────────────
+    # ── P2b: Room load vs available slots ─────────────────────────────────────
     room_periods: dict = {}
     for block in data.blocks:
         for ri in block.room_indices:
@@ -210,43 +263,52 @@ def preflight_check(data: ProblemData) -> PreflightResult:
 
         if total > avail_bits:
             errors.append(
-                f"Room {r.id}: assigned {total} periods "
-                f"but only {avail_bits} available slots")
+                f"Room '{_room_label(data, r)}': assigned {total} periods "
+                f"but only {avail_bits} available slots"
+            )
         elif total > avail_bits * 0.85:
             warnings.append(
-                f"Room {r.id}: {total}/{avail_bits} available slots used "
-                f"({100*total/avail_bits:.0f}%) — very tight, possibility of a hard violation")
+                f"Room '{_room_label(data, r)}': {total}/{avail_bits} available slots used "
+                f"({100*total/avail_bits:.0f}%) — "
+                f"very tight, possibility of a hard violation"
+            )
 
     # ── P3: Room type availability ────────────────────────────────────────────
-    # Count lab rooms and check lab block requirements
     lab_rooms      = sum(1 for r in data.rooms if r.is_lab)
     lab_capacity   = sum(bin(r.available_mask & working).count('1') for r in data.rooms if r.is_lab)
     lab_slots_need = sum(block.duration * block.count
                          for block in data.blocks if block.is_lab)
 
     if lab_slots_need > 0 and lab_rooms == 0:
-        errors.append(f"No lab rooms defined but {lab_slots_need} lab periods required")
+        errors.append(
+            f"No lab rooms defined but {lab_slots_need} lab periods required"
+        )
     elif lab_slots_need > lab_capacity:
-        errors.append(f"Need {lab_slots_need} lab periods but total lab capacity is only {lab_capacity}")
+        errors.append(
+            f"Need {lab_slots_need} lab periods but total lab capacity is only {lab_capacity}"
+        )
     elif lab_capacity > 0 and lab_slots_need > lab_capacity * 0.85:
-        warnings.append(f"Lab capacity very tight: {lab_slots_need}/{lab_capacity} slots used "
-                        f"({100*lab_slots_need/lab_capacity:.0f}%) — possibility of a hard violation")
+        warnings.append(
+            f"Lab capacity very tight: {lab_slots_need}/{lab_capacity} slots used "
+            f"({100*lab_slots_need/lab_capacity:.0f}%) — possibility of a hard violation"
+        )
 
     # ── P6: Double/triple fit check ───────────────────────────────────────────
     for block in data.blocks:
         if block.duration > periods:
             errors.append(
-                f"Block {block.id} ({block.subject_name}): "
-                f"duration {block.duration} > periods_per_day {periods}")
+                f"Block '{block.subject_name}': "
+                f"duration {block.duration} > periods_per_day {periods}"
+            )
 
         if block.duration > 1:
-            # Check that at least one valid contiguous slot exists
             valid_slots = data.settings.working_slots_for_duration(block.duration)
             if not valid_slots:
                 errors.append(
-                    f"Block {block.id} ({block.subject_name}): "
+                    f"Block '{block.subject_name}': "
                     f"no valid contiguous {block.duration}-period slot exists "
-                    f"(all slots either break or overflow day)")
+                    f"(all slots either break or overflow day)"
+                )
 
     feasible = len(errors) == 0
     return PreflightResult(feasible=feasible, warnings=warnings, errors=errors)

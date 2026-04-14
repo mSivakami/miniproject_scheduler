@@ -857,6 +857,10 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
 
     def add(type_, desc, block_id=""):
         violations.append({"type": type_, "description": desc, "block_id": block_id})
+    
+    def tname(ti): return data.orig_teachers.get(teachers[ti].id, teachers[ti]).name if data.orig_teachers else teachers[ti].id
+    def rname(ri): return data.orig_rooms.get(rooms[ri].id, rooms[ri]).name if data.orig_rooms else rooms[ri].id
+    def cname(ci): return data.orig_classes.get(data.classes[ci].id, data.classes[ci]).name if data.orig_classes else data.classes[ci].id
 
     for gene in chr_.genes:
         block = blocks[gene.block_idx]
@@ -882,27 +886,27 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
             if cs.H1:
                 for ti in t_indices:
                     if teacher_used[ti] & slot_bit:
-                        add("H1", f"Teacher {teachers[ti].id} double-booked at Day{day+1} P{period+1}", block.id)
+                        add("H1", f"Teacher {tname(ti)} double-booked at Day{day+1} P{period+1}", block.id)
 
             if cs.H2:
                 for ri in r_indices:
                     if room_used[ri] & slot_bit:
-                        add("H2", f"Room {rooms[ri].id} double-booked at Day{day+1} P{period+1}", block.id)
+                        add("H2", f"Room {rname(ri)} double-booked at Day{day+1} P{period+1}", block.id)
 
             if cs.H3:
                 for ti in t_indices:
                     if not (teachers[ti].available_mask & slot_bit):
-                        add("H3", f"Teacher {teachers[ti].id} unavailable at Day{day+1} P{period+1}", block.id)
+                        add("H3", f"Teacher {tname(ti)} unavailable at Day{day+1} P{period+1}", block.id)
 
             if cs.H4:
                 for ri in r_indices:
                     if not (rooms[ri].available_mask & slot_bit):
-                        add("H4", f"Room {rooms[ri].id} unavailable at Day{day+1} P{period+1}", block.id)
+                        add("H4", f"Room {rname(ri)} unavailable at Day{day+1} P{period+1}", block.id)
 
             if cs.H9:
                 for ci in c_indices:
                     if class_used[ci] & slot_bit:
-                        add("H9", f"Class {data.classes[ci].id} double-booked at Day{day+1} P{period+1}", block.id)
+                        add("H9", f"Class {cname(ci)} double-booked at Day{day+1} P{period+1}", block.id)
 
             for ti in t_indices:
                 teacher_used[ti] |= slot_bit
@@ -915,7 +919,7 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
         if cs.H7 and block.is_lab:
             for ri in r_indices:
                 if not rooms[ri].is_lab:
-                    add("H7", f"{block.subject_name} assigned to non-lab room {rooms[ri].id}", block.id)
+                    add("H7", f"{block.subject_name} assigned to non-lab room {rname(ri)}", block.id)
 
         if cs.S2 and block.is_difficult:
             if sp + dur - 1 >= periods - 1:
@@ -929,7 +933,7 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
                 key = (block.subject_id, day, ci)
                 cnt = subject_day_class.get(key, 0)
                 if cnt >= 1:
-                    add("S3", f"{block.subject_name} twice on Day{day+1} for class {data.classes[ci].id}", block.id)
+                    add("S3", f"{block.subject_name} twice on Day{day+1} for class {cname(ci)}", block.id)
                 subject_day_class[key] = cnt + 1
  
         # S7: track first-period assignments
@@ -952,7 +956,7 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
             for d in range(days):
                 excess = teacher_daily[base + d] - teacher.max_per_day
                 if excess > 0:
-                    add("S1", f"Teacher {teacher.id} overloaded on Day{d+1}: "
+                    add("S1", f"Teacher {teacher.name} overloaded on Day{d+1}: "
                               f"{teacher_daily[base + d]} periods > max {teacher.max_per_day}")
 
     # S5
@@ -967,7 +971,7 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
                     if mask & (1 << (base + p)):
                         run += 1
                         if run > max_c:
-                            add("S5", f"Teacher {teachers[ti].id} has {run} consecutive "
+                            add("S5", f"Teacher {tname(ti)} has {run} consecutive "
                                       f"periods on Day{d+1} at P{p+1}")
                     else:
                         run = 0
@@ -989,7 +993,7 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
             mean = total / days
             variance = sum((c - mean) ** 2 for c in counts) / days
             if variance > 0.5:
-                add("S6", f"Subject {sid} for class {data.classes[ci].id} "
+                add("S6", f"Subject {block.subject_name} for class {cname(ci)} "
                           f"unevenly distributed (variance={variance:.2f})")
 
     # S7: First-period distribution details
@@ -1006,7 +1010,7 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
                 deviation = count - mean
                 if abs(deviation) > 1.0:
                     status = "overloaded" if deviation > 0 else "underloaded"
-                    add("S7", f"Teacher {data.teachers[ti].id} is {status} with first periods "
+                    add("S7", f"Teacher {tname(ti)} is {status} with first periods "
                                f"({count} vs mean {mean:.1f})")
 
     # S4
@@ -1027,7 +1031,7 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
                     for p in range(first_p + 1, last_p):
                         slot = base + p
                         if (w_mask & (1 << slot)) and not (mask & (1 << slot)):
-                            add("S4", f"Class {data.classes[ci].id} has a free period "
+                            add("S4", f"Class {cname(ci)} has a free period "
                                       f"before end of Day{d+1} at P{p+1}")
 
     # S10
@@ -1036,7 +1040,7 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
             base = ci * days
             for d in range(days):
                 if class_lab_daily[base + d] > 1:
-                    add("S10", f"Class {data.classes[ci].id} has multiple lab sessions "
+                    add("S10", f"Class {cname(ci)} has multiple lab sessions "
                                f"on Day{d+1}", "")
 
     # S11 — optimized bitmask path
@@ -1049,7 +1053,7 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
                 if not (mask & day_slot_mask[d]):
                     continue
                 if not (mask & (1 << (d * periods))):
-                    add("S11", f"Class {data.classes[ci].id} has classes on Day{d+1} "
+                    add("S11", f"Class {cname(ci)} has classes on Day{d+1} "
                                f"but the first period is empty", "")
 
     # S8
@@ -1067,7 +1071,7 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
                     curr_block = teacher_slots[base_ts + slot]
                     if curr_block != -1:
                         if prev_block != -1 and curr_block != prev_block:
-                            add("S8", f"Teacher {teachers[ti].id} has back-to-back "
+                            add("S8", f"Teacher {tname(ti)} has back-to-back "
                                       f"distinct courses/blocks at Day{d+1} P{p+1}")
                     prev_block = curr_block
 
@@ -1088,7 +1092,7 @@ def get_violation_details(chr_: Chromosome, data: ProblemData, cs: ConstraintSet
                 lessons = day_counts[gap_day]
                 if lessons > 0:
                     dname = day_names[gap_day] if gap_day < len(day_names) else f"Day{gap_day+1}"
-                    add("S9", f"Class {data.classes[ci].id} has {lessons} periods on {dname} "
+                    add("S9", f"Class {cname(ci)} has {lessons} periods on {dname} "
                                f"(prefer earlier days)")
 
     return violations
