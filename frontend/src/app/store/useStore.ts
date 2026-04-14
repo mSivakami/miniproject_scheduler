@@ -596,6 +596,7 @@ interface AppState {
   saveAll: (miniGroupId?: string) => Promise<void>;
   markAsSaved: () => void;
   resetAllData: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   completeOnboarding: () => void;
   bootstrap: () => Promise<void>;
 }
@@ -918,14 +919,40 @@ export const useStore = create<AppState>()(
       completeOnboarding: () => set({ isFirstTime: false }),
 
       resetAllData: async () => {
-        // Clear local state only — data belongs to the account on the server
-        // and will be loaded fresh on next login via bootstrap().
-        set({
-          subjects: [], teachers: [], classes: [], classrooms: [], lessons: [], groups: [],
-          generation: emptyGeneration,
-          settings: defaultSettings,
-          hasUnsavedChanges: false, isBootstrapped: false,
-        });
+        try {
+          await api.resetData();
+          set({
+            subjects: [], teachers: [], classes: [], classrooms: [], lessons: [], groups: [],
+            generation: emptyGeneration,
+            settings: defaultSettings,
+            hasUnsavedChanges: false, isBootstrapped: false,
+            isFirstTime: true,
+          });
+          toast.success("All data for this account has been truncated.");
+        } catch (err) {
+          toast.error("Failed to reset data on server.");
+          console.error(err);
+        }
+      },
+
+      deleteAccount: async () => {
+        try {
+          await api.deleteAccount();
+          // Clear EVERYTHING and redirect
+          set({
+            subjects: [], teachers: [], classes: [], classrooms: [], lessons: [], groups: [],
+            generation: emptyGeneration,
+            settings: defaultSettings,
+            hasUnsavedChanges: false, isBootstrapped: false,
+          });
+          // The api.deleteAccount() doesn't auto-clear token in localstorage 
+          // unless it returns 401, but here it's a 200/delete. 
+          // Logout handled by clearing store + redirect.
+          window.location.href = '/'; 
+        } catch (err) {
+          toast.error("Failed to delete account.");
+          console.error(err);
+        }
       },
     }),
     {

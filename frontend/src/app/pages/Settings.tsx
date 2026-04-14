@@ -4,9 +4,9 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Settings as SettingsIcon, Save, Trash2, HelpCircle, Coffee } from "lucide-react";
+import { Settings as SettingsIcon, Save, Trash2, HelpCircle, Coffee, AlertTriangle, RotateCcw } from "lucide-react";
 import { PageWrapper } from "../components/PageWrapper";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from "../components/ui/dialog";
 import { toast } from "sonner";
 import { useStore, Break } from "../store/useStore";
 import { HelpTourDialog } from "../components/HelpTourDialog";
@@ -14,13 +14,14 @@ import { HelpTourDialog } from "../components/HelpTourDialog";
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export function Settings() {
-  const { settings, updateSettings, resetAllData } = useStore();
+  const { settings, updateSettings, resetAllData, deleteAccount } = useStore();
   const [schoolName, setSchoolName] = useState(settings.schoolName);
   const [academicYear, setAcademicYear] = useState(settings.academicYear);
   const [periodsPerDay, setPeriodsPerDay] = useState(settings.periodsPerDay);
   const [numberOfDays, setNumberOfDays] = useState(settings.numberOfDays);
   const [breaks, setBreaks] = useState<Break[]>(settings.breaks || []);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isHelpTourOpen, setIsHelpTourOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
@@ -69,9 +70,21 @@ export function Settings() {
       setIsResetting(true);
       await resetAllData();
       setIsResetDialogOpen(false);
-      toast.success("All data cleared across all tabs.");
+      // toast success handled by store
     } catch (err) {
-      toast.error("Failed to reset data.");
+      // toast error handled by store
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      setIsResetting(true); // show loading on button
+      await deleteAccount();
+      // Redirect handled by store
+    } catch (err) {
+      // toast error handled by store
     } finally {
       setIsResetting(false);
     }
@@ -221,31 +234,48 @@ export function Settings() {
           </Card>
 
           {/* Data Management */}
-          <Card className="xl:col-span-2">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base">Data management</CardTitle>
-              <CardDescription>Clear your workspace and start fresh</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-4 rounded-md bg-destructive/5 border border-destructive/20 max-w-2xl">
-                <p className="text-sm font-medium mb-1 text-destructive">Danger zone</p>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Permanently delete all subjects, teachers, classes, rooms, and groups from the store and the backend server. This action cannot be undone.
-                </p>
-                <Button
-                  onClick={() => setIsResetDialogOpen(true)}
-                  variant="destructive"
-                  size="sm"
-                  className="gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Reset all data
-                </Button>
-              </div>
+          <Card className="xl:col-span-2 border-destructive/20 bg-destructive/5 overflow-hidden">
+            <div className="bg-destructive/10 px-6 py-4 border-b border-destructive/20 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              <h2 className="text-sm font-bold text-destructive uppercase tracking-wider">Danger Zone</h2>
+            </div>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-sm font-semibold">Reset All Data</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Permanently delete all teachers, subjects, lessons, mini-groups, and saved timetables. 
+                    Your account and school settings will be preserved.
+                  </p>
+                  <Button
+                    onClick={() => setIsResetDialogOpen(true)}
+                    variant="outline"
+                    size="sm"
+                    className="w-fit border-destructive/30 hover:bg-destructive/10 hover:text-destructive gap-2 text-xs"
+                    disabled={isResetting}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Truncate Data Store
+                  </Button>
+                </div>
 
-              <div className="p-4 rounded-md bg-muted/30 border border-border max-w-2xl">
-                <p className="text-sm font-medium mb-0.5">About</p>
-                <p className="text-xs text-muted-foreground">Automatic Timetable Scheduler · v1.0.0 · Genetic Algorithm</p>
+                <div className="flex flex-col gap-2 md:border-l md:border-destructive/10 md:pl-8">
+                  <h3 className="text-sm font-semibold">Delete Account</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Permanently delete your account and all associated data. Your username will be released, 
+                    and all information will be scrubbed from our database.
+                  </p>
+                  <Button
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                    variant="destructive"
+                    size="sm"
+                    className="w-fit gap-2 text-xs mt-1"
+                    disabled={isResetting}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete Account
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -256,16 +286,37 @@ export function Settings() {
       <Dialog open={isResetDialogOpen} onOpenChange={(o) => !isResetting && setIsResetDialogOpen(o)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset all data?</DialogTitle>
+            <DialogTitle>Truncate all data?</DialogTitle>
             <DialogDescription>
-              This will permanently delete ALL data across all modules (Subjects, Teachers, Classes, Rooms, and Groups). The application will be restored to its default empty state.
+              This will erase all your configured entities and timetables. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsResetDialogOpen(false)} disabled={isResetting}>Cancel</Button>
             <Button variant="destructive" onClick={handleResetAll} disabled={isResetting}>
-              {isResetting ? "Resetting..." : "Reset everything"}
+              {isResetting ? "Resetting..." : "Yes, Truncate Everything"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Account Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={(o) => setIsDeleteDialogOpen(o)}>
+        <DialogContent className="border-destructive">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" /> Permanent Account Deletion
+            </DialogTitle>
+            <DialogDescription className="font-medium text-foreground py-2">
+              You are about to delete your entire account. All data will be lost forever. 
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 px-2 bg-destructive/5 rounded border border-destructive/20 text-xs text-destructive-foreground italic text-center">
+            Warning: This action cannot be reversed.
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteAccount} className="px-8 font-bold">I UNDERSTAND, DELETE MY ACCOUNT</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

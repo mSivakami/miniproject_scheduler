@@ -270,5 +270,13 @@ export const api = {
   renameTimetable(id: string, name: string): Promise<void> {
     return request('PUT', api_url(`/api/timetables/${id}/name?name=${encodeURIComponent(name)}`));
   },
+
+  // Account & Global Data Reset
+  resetData(): Promise<{ message: string }> {
+    return request('POST', api_url('/api/data/reset'));
+  },
+  deleteAccount(): Promise<{ message: string }> {
+    return request('DELETE', api_url('/auth/me'));
+  },
 };
 

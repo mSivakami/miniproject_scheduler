@@ -34,6 +34,17 @@ class Account(Base):
     created_at    = Column(DateTime, server_default=func.now())
 
 
+class DeletedAccountAudit(Base):
+    """Audit trail for accounts that have been permanently deleted."""
+    __tablename__ = "deleted_account_audits"
+
+    id                  = Column(String, primary_key=True, default=gen_uuid)
+    original_account_id = Column(String, nullable=False)
+    username            = Column(String, nullable=False)
+    account_created_at  = Column(DateTime, nullable=True)
+    deleted_at          = Column(DateTime, server_default=func.now())
+
+
 class AdminUser(Base):
     """Legacy table kept for compatibility with older local databases."""
     __tablename__ = "admin_users"

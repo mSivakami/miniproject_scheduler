@@ -273,3 +273,30 @@ def sync_all_data(
 
     # Return refreshed data for the same scope
     return get_all_data(db=db, current_user=current_user, mini_group_id=effective_mini_group_id)
+
+
+@router.post("/reset")
+def reset_data(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Truncate ALL schedule data (teachers, subjects, rooms, lessons, groups, etc.) for the user."""
+    inst = get_or_create_institution(db, current_user.id)
+
+    # Delete all entities associated with the institution
+    # Cascades aren't perfect for bulk deletion without deleting the parent,
+    # so we manually clear the main collections.
+    db.query(Teacher).filter(Teacher.institution_id == inst.id).delete()
+    db.query(Subject).filter(Subject.institution_id == inst.id).delete()
+    db.query(Room).filter(Room.institution_id == inst.id).delete()
+    db.query(Classroom).filter(Classroom.institution_id == inst.id).delete()
+    db.query(LessonBlock).filter(LessonBlock.institution_id == inst.id).delete()
+    db.query(ConstraintSettings).filter(ConstraintSettings.institution_id == inst.id).delete()
+    
+    # Also delete MiniGroups and Timetables (imported from models if they were missing, but they are in the file header)
+    from models import MiniGroup, GeneratedTimetable
+    db.query(MiniGroup).filter(MiniGroup.institution_id == inst.id).delete()
+    db.query(GeneratedTimetable).filter(GeneratedTimetable.institution_id == inst.id).delete()
+
+    db.commit()
+    return {"message": "Data truncated successfully"}

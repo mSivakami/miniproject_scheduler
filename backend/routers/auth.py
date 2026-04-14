@@ -300,7 +300,6 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     token = _create_token(account.id, account.username)
     return TokenResponse(access_token=token, username=account.username, role=ROLE_ACCOUNT)
 
-
 @router.get("/me", response_model=MeResponse)
 def me(current_user: CurrentUser = Depends(get_current_user)):
     return MeResponse(
@@ -309,3 +308,28 @@ def me(current_user: CurrentUser = Depends(get_current_user)):
         role=current_user.role,
         created_at=current_user.created_at,
     )
+
+
+@router.delete("/me")
+def delete_me(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Permanently delete the current account and all associated data."""
+    from models import DeletedAccountAudit, Account
+    
+    # 1. Create audit log
+    audit = DeletedAccountAudit(
+        original_account_id=current_user.id,
+        username=current_user.username,
+        account_created_at=current_user.created_at
+    )
+    db.add(audit)
+    
+    # 2. Delete the account (cascades will handle sub-entities)
+    account = db.query(Account).filter(Account.id == current_user.id).first()
+    if account:
+        db.delete(account)
+    
+    db.commit()
+    return {"message": "Account deleted successfully"}
