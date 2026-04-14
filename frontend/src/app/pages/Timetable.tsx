@@ -557,7 +557,7 @@ function TimetableView() {
   } = useStore();
 
   useEffect(() => {
-    // Ensure we are in the main timetable scope
+    // Ensure we are in the main timetable scope initially
     loadScopedData("main");
     fetchGroups();
   }, [loadScopedData, fetchGroups]);
@@ -565,6 +565,13 @@ function TimetableView() {
   const [viewMode, setViewMode] = useState<"teacher" | "class" | "classroom">("class");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationTarget, setGenerationTarget] = useState<string>("main");
+
+  // Load the selected scope whenever the generation target changes
+  useEffect(() => {
+    if (generationTarget) {
+      loadScopedData(generationTarget === "main" ? undefined : generationTarget);
+    }
+  }, [generationTarget, loadScopedData]);
   const [selectedEntityId, setSelectedEntityId] = useState("all");
 
   const [isSaving, setIsSaving] = useState(false);
@@ -629,8 +636,13 @@ function TimetableView() {
       toast.error("Please add teachers, classes, and subjects first.");
       return;
     }
-    if (!lessons.length) {
-      toast.error("Please add lessons first.");
+    const relevantLessons = generationTarget === "main"
+      ? lessons.filter(l => !l.mini_group_id)
+      : lessons.filter(l => l.mini_group_id === generationTarget);
+
+    if (relevantLessons.length === 0) {
+      const scopeLabel = generationTarget === "main" ? "the Main Schedule" : "this Mini Group";
+      toast.error(`Please add lessons to ${scopeLabel} first.`);
       return;
     }
 

@@ -703,6 +703,19 @@ export const useStore = create<AppState>()(
           return;
         }
 
+        // Check if there are any lessons for the selected scope before generating
+        const relevantLessons = groupId 
+          ? s.lessons.filter(l => l.mini_group_id === groupId)
+          : s.lessons.filter(l => !l.mini_group_id);
+
+        if (relevantLessons.length === 0) {
+          const scopeLabel = groupId ? "this Mini Group" : "the Main Schedule";
+          const msg = `No lessons found for ${scopeLabel}. Please add lessons before generating a timetable.`;
+          set({ generation: { ...emptyGeneration, status: 'failed', error: msg } });
+          toast.error(msg);
+          return;
+        }
+
         try {
           let result: GenerateResponse;
           if (groupId) {
