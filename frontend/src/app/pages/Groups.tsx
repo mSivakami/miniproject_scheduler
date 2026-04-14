@@ -448,7 +448,7 @@ export function Groups() {
                 const sCount = JSON.parse(group.selected_subject_ids || "[]").length;
                 const rCount = JSON.parse(group.selected_room_ids || "[]").length;
                 const cCount = JSON.parse(group.selected_class_ids || "[]").length;
-                const lCount = lessons.filter(l => l.mini_group_id === group.id).length;
+                const lCount = (group as any).lesson_count || 0;
                 return (
                   <Card key={group.id} className="hover:shadow-md transition-shadow">
                     <CardHeader className="pb-3">

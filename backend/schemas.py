@@ -182,6 +182,7 @@ class MiniGroupOut(MiniGroupBase):
     institution_id: str
     break_mask: int = 0
     working_slot_mask: int = 0
+    lesson_count: int = 0
     class Config:
         from_attributes = True
 

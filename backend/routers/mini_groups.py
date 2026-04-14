@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from database import get_db, get_or_create_institution
-from models import MiniGroup, ConstraintSettings
+from models import MiniGroup, ConstraintSettings, LessonBlock
 from schemas import MiniGroupCreate, MiniGroupOut
 from services.bitmask_service import compute_break_mask, compute_working_mask
 from routers.auth import CurrentUser, get_current_user
@@ -23,7 +23,10 @@ def list_mini_groups(
 ):
     """List all mini-groups (max 6)."""
     inst = get_or_create_institution(db, current_user.id)
-    return db.query(MiniGroup).filter(MiniGroup.institution_id == inst.id).all()
+    groups = db.query(MiniGroup).filter(MiniGroup.institution_id == inst.id).all()
+    for g in groups:
+        g.lesson_count = db.query(LessonBlock).filter(LessonBlock.mini_group_id == g.id).count()
+    return groups
 
 
 @router.post("", response_model=MiniGroupOut)
@@ -76,6 +79,7 @@ def create_mini_group(
 
     db.commit()
     db.refresh(obj)
+    obj.lesson_count = 0
     return obj
 
 
@@ -130,6 +134,7 @@ def update_mini_group(
 
     db.commit()
     db.refresh(obj)
+    obj.lesson_count = db.query(LessonBlock).filter(LessonBlock.mini_group_id == obj.id).count()
     return obj
 
 
