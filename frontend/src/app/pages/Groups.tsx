@@ -187,7 +187,11 @@ export function Groups() {
   // Track which main lesson IDs have been imported (for the wizard two-panel selector display)
   const [importedMainLessonIds, setImportedMainLessonIds] = useState<string[]>([]);
 
-  useEffect(() => { fetchGroups(); }, [fetchGroups]);
+  useEffect(() => {
+    if (!useStore.getState().hasUnsavedChanges) {
+      fetchGroups();
+    }
+  }, [fetchGroups]);
 
   const STAGES = ["Setup", "Subjects", "Teachers", "Rooms", "Classes", "Lessons", "Review"];
 

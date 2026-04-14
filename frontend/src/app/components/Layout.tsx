@@ -1,17 +1,32 @@
-import { Outlet, Link, useLocation } from "react-router";
+import { Outlet, Link, useLocation, useBlocker } from "react-router";
 import { Toaster, toast } from "sonner";
-import { BookOpen, Users, School, DoorOpen, BookMarked, Calendar, Settings, GraduationCap, Save, Sun, Moon, Archive, Layers, LogOut, Wifi, WifiOff, Sliders } from "lucide-react";
+import { BookOpen, Users, School, DoorOpen, BookMarked, Calendar, Settings, GraduationCap, Save, Sun, Moon, Archive, Layers, LogOut, Wifi, WifiOff, Sliders, AlertTriangle } from "lucide-react";
 import { OnboardingDialog } from "./OnboardingDialog";
 import { useStore } from "../store/useStore";
 import { Button } from "./ui/button";
 import { useTheme } from "../context/ThemeContext";
 import { useAppContext } from "../context/AppContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 export function Layout() {
   const location = useLocation();
-  const { hasUnsavedChanges, saveAll, backendAvailable } = useStore();
+  const { hasUnsavedChanges, saveAll, backendAvailable, markAsSaved } = useStore();
   const { isDark, toggleTheme } = useTheme();
   const { onSignOut } = useAppContext();
+
+  // Navigation Blocker
+  const blocker = useBlocker(({ nextLocation, currentLocation }) => {
+    return hasUnsavedChanges && nextLocation.pathname !== currentLocation.pathname;
+  });
 
   const navItems = [
     { icon: BookOpen,   label: "Subjects",   path: "/subjects" },
@@ -31,8 +46,18 @@ export function Layout() {
     try {
       await saveAll();
       toast.success(backendAvailable ? "All changes saved!" : "Saved locally.");
+      if (blocker?.state === "blocked") {
+        blocker.proceed();
+      }
     } catch {
       toast.error("Failed to save - check your connection and try again.");
+    }
+  };
+
+  const handleDiscardChanges = () => {
+    markAsSaved();
+    if (blocker?.state === "blocked") {
+      blocker.proceed();
     }
   };
 
@@ -104,23 +129,64 @@ export function Layout() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-auto">
+      <div className="flex-1 flex flex-col min-w-0">
         {hasUnsavedChanges && (
-          <div className="shrink-0 bg-amber-50 dark:bg-amber-950/50 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 px-6 py-2.5">
+          <div className="shrink-0 z-40 bg-amber-50 dark:bg-amber-950/50 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 px-6 py-2.5 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                <span>Unsaved changes{!backendAvailable ? " - local mode" : ""}</span>
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                <span>You have unsaved changes{!backendAvailable ? " (Local Mode)" : ""}</span>
               </div>
-              <Button onClick={handleSaveAll} size="sm" variant="outline" className="h-7 text-xs border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 gap-1.5">
-                <Save className="w-3 h-3" />
-                Save all
+              <Button onClick={handleSaveAll} size="sm" className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm gap-1.5 transition-all active:scale-95">
+                <Save className="w-3.5 h-3.5" />
+                Save All Changes
               </Button>
             </div>
           </div>
         )}
-        <Outlet />
+        <div className="flex-1 overflow-auto bg-background/50">
+          <Outlet />
+        </div>
       </div>
+
+      {/* Navigation Guard Dialog */}
+      <AlertDialog open={blocker.state === "blocked"}>
+        <AlertDialogContent className="border-amber-200 dark:border-amber-900 shadow-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="w-5 h-5" />
+              Unsaved Changes
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-foreground pt-2">
+              You have unsaved changes that will be lost if you leave this page. 
+              Would you like to save them now?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <Button 
+              variant="ghost" 
+              onClick={handleDiscardChanges}
+              className="text-muted-foreground hover:text-destructive transition-colors"
+            >
+              Discard Changes
+            </Button>
+            <div className="flex gap-2">
+              <AlertDialogCancel 
+                onClick={() => blocker.reset!()}
+                className="mt-0"
+              >
+                Stay on Page
+              </AlertDialogCancel>
+              <Button 
+                onClick={handleSaveAll}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                Save & Continue
+              </Button>
+            </div>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

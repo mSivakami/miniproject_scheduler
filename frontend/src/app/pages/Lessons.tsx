@@ -31,7 +31,10 @@ export function Lessons() {
   
   useEffect(() => {
     // Ensure we are viewing the main timetable scope when this page mounts
-    loadScopedData("main");
+    // BUT only if we don't have pending unsaved local changes that would be overwritten.
+    if (!useStore.getState().hasUnsavedChanges) {
+      loadScopedData("main");
+    }
   }, [loadScopedData]);
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
