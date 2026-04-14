@@ -33,7 +33,7 @@ export function Dashboard() {
   ];
 
   const handleSave = () => {
-    updateSettings({ schoolName, academicYear, periodsPerDay, numberOfDays, breaks: settings.breaks, breakAfterPeriod: settings.breakAfterPeriod ?? 3 });
+    updateSettings({ schoolName, academicYear, periodsPerDay, numberOfDays, breaks: settings.breaks, breakAfterPeriod: settings.breakAfterPeriod ?? 3, constraintMask: settings.constraintMask });
   };
 
   return (

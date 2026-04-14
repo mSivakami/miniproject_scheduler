@@ -36,12 +36,12 @@ export function Constraints() {
   const [constraintIntensities, setConstraintIntensities] = useState<number[]>(new Array(12).fill(1)); // 0-3 (Minimal, Medium, Hard, Strict)
   const [manualMaskInput, setManualMaskInput] = useState("");
 
-  // Sync from store on mount
+  // Sync from store on mount AND when the store mask updates (e.g. after bootstrap)
   useEffect(() => {
     if (settings.constraintMask) {
         decodeToState(settings.constraintMask.toString());
     }
-  }, []);
+  }, [settings.constraintMask]);
 
   const calculateMask = () => {
     let mask = 0n;

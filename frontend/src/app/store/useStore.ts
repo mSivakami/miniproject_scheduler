@@ -9,6 +9,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { api, AllDataOut, ApiError, GenerateResponse, MiniGroupOut, MiniGroupCreate } from '../api';
 import { runGA } from '../ga/scheduler';
 import type { SchedulerConstraints } from '../ga/scheduler';
+import { toast } from 'sonner';
 
 // ─── Constraint loader ────────────────────────────────────────────────────
 
@@ -338,7 +339,7 @@ const defaultSettings: AppSettings = {
   numberOfDays: '5',
   breakAfterPeriod: 3,
   breaks: [],
-  constraintMask: 0,
+  constraintMask: 274743149567,
 };
 
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#84cc16'];
@@ -596,6 +597,7 @@ interface AppState {
   markAsSaved: () => void;
   resetAllData: () => Promise<void>;
   completeOnboarding: () => void;
+  bootstrap: () => Promise<void>;
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────
