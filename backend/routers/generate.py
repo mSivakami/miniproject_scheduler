@@ -78,6 +78,7 @@ def generate_main(
             fast_mode=req.fast_mode,
             constraint_mask=req.constraint_mask,
         )
+        print(f"\n[GA] Starting Main Generation with constraint_mask: {req.constraint_mask} (0x{req.constraint_mask or 0:X} if req.constraint_mask else 0)")
     except Exception as e:
         raise HTTPException(500, f"GA engine error: {str(e)}")
 
@@ -144,6 +145,7 @@ def generate_mini(
             fast_mode=req.fast_mode,
             constraint_mask=req.constraint_mask,
         )
+        print(f"\n[GA] Starting Mini-Group Generation with constraint_mask: {req.constraint_mask} (0x{req.constraint_mask or 0:X} if req.constraint_mask else 0)")
     except Exception as e:
         raise HTTPException(500, f"GA engine error: {str(e)}")
 

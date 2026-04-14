@@ -677,7 +677,7 @@ export const useStore = create<AppState>()(
         await api.deleteMiniGroup(id);
         set(st => ({ groups: st.groups.filter(g => g.id !== id) }));
         // also remove lessons associated with this group
-        set(st => ({ 
+        set(st => ({
           lessons: st.lessons.filter(l => l.mini_group_id !== id),
           hasUnsavedChanges: true,
         }));
@@ -704,7 +704,7 @@ export const useStore = create<AppState>()(
         }
 
         // Check if there are any lessons for the selected scope before generating
-        const relevantLessons = groupId 
+        const relevantLessons = groupId
           ? s.lessons.filter(l => l.mini_group_id === groupId)
           : s.lessons.filter(l => !l.mini_group_id);
 
@@ -765,7 +765,7 @@ export const useStore = create<AppState>()(
               gridMetadata: responseMeta ? {
                 days: responseMeta.days ?? (parseInt(s.settings.numberOfDays) || 5),
                 periods: responseMeta.periods ?? (parseInt(s.settings.periodsPerDay) || 7),
-                day_names: responseMeta.day_names ?? ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].slice(0, parseInt(s.settings.numberOfDays) || 5),
+                day_names: responseMeta.day_names ?? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].slice(0, parseInt(s.settings.numberOfDays) || 5),
                 breaks: resolvedBreaks,
               } : null,
               timetable: {
@@ -961,7 +961,7 @@ export const useStore = create<AppState>()(
           // The api.deleteAccount() doesn't auto-clear token in localstorage 
           // unless it returns 401, but here it's a 200/delete. 
           // Logout handled by clearing store + redirect.
-          window.location.href = '/'; 
+          window.location.href = '/';
         } catch (err) {
           toast.error("Failed to delete account.");
           console.error(err);
