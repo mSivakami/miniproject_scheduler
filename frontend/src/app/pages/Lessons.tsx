@@ -621,9 +621,27 @@ export function Lessons() {
                     >
                       <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: periodsPerDay }, (_, i) => i + 1).map(period => (
-                          <SelectItem key={period} value={period.toString()}>{period}</SelectItem>
-                        ))}
+                        {Array.from({ length: periodsPerDay }, (_, i) => i + 1).map(period => {
+                          const p0 = period - 1;
+                          const dur = newLesson.locked_duration || 1;
+                          const overflows = p0 + dur > periodsPerDay;
+                          const hitsBreak = (settings.breaks || []).some(
+                            b => b.day === newLesson.locked_day && 
+                                 b.period >= p0 && 
+                                 b.period < p0 + dur
+                          );
+                          const isInvalid = overflows || hitsBreak;
+                          
+                          return (
+                            <SelectItem 
+                              key={period} 
+                              value={period.toString()}
+                              disabled={isInvalid}
+                            >
+                              {period} {hitsBreak ? "(Break)" : overflows ? "(Overflow)" : ""}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -864,9 +882,27 @@ export function Lessons() {
                       >
                         <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {Array.from({ length: periodsPerDay }, (_, i) => i + 1).map(period => (
-                            <SelectItem key={period} value={period.toString()}>{period}</SelectItem>
-                          ))}
+                          {Array.from({ length: periodsPerDay }, (_, i) => i + 1).map(period => {
+                            const p0 = period - 1;
+                            const dur = editingLesson.locked_duration || 1;
+                            const overflows = p0 + dur > periodsPerDay;
+                            const hitsBreak = (settings.breaks || []).some(
+                              b => b.day === editingLesson.locked_day && 
+                                   b.period >= p0 && 
+                                   b.period < p0 + dur
+                            );
+                            const isInvalid = overflows || hitsBreak;
+
+                            return (
+                              <SelectItem 
+                                key={period} 
+                                value={period.toString()}
+                                disabled={isInvalid}
+                              >
+                                {period} {hitsBreak ? "(Break)" : overflows ? "(Overflow)" : ""}
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
                     </div>
