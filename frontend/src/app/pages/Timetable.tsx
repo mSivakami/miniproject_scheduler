@@ -1236,8 +1236,24 @@ function TimetableView() {
     toast.success(`Moved "${entry.subject_name}" to ${dayNames[toDay]?.slice(0, 3)} P${toPeriod + 1}.`);
   };
 
-  const entities: (Teacher | Class | Classroom)[] =
+  // Collect IDs that actually appear in scheduled entries so we never show empty grids
+  // for teachers/classes/rooms that weren't part of this (mini-group) timetable.
+  const activeTeacherIds = new Set(localEntries.flatMap(e => e.teacher_ids));
+  const activeClassIds   = new Set(localEntries.flatMap(e => e.class_ids));
+  const activeRoomIds    = new Set(localEntries.flatMap(e => e.room_ids));
+
+  const allEntities: (Teacher | Class | Classroom)[] =
     viewMode === "teacher" ? teachers : viewMode === "class" ? classes : classrooms;
+
+  // When a timetable has been generated, trim to only the entities that appear in it.
+  // When there is no timetable yet, show all entities (so the dropdowns still work).
+  const entities = localEntries.length > 0
+    ? allEntities.filter(entity => {
+        if (viewMode === "teacher") return activeTeacherIds.has(entity.id);
+        if (viewMode === "class")   return activeClassIds.has(entity.id);
+        return activeRoomIds.has(entity.id);
+      })
+    : allEntities;
 
   const filtered = selectedEntityId === "all"
     ? entities
