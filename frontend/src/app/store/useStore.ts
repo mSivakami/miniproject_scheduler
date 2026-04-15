@@ -911,7 +911,12 @@ export const useStore = create<AppState>()(
             id: c.id.startsWith('local_') ? undefined : c.id,
             name: c.name, short_name: c.short, capacity: c.capacity ?? 40,
           })),
-          lesson_blocks: lessonsToBackend(s.lessons, s.subjects),
+          lesson_blocks: lessonsToBackend(
+            miniGroupId
+              ? s.lessons.filter(l => l.mini_group_id === miniGroupId)
+              : s.lessons.filter(l => !l.mini_group_id),
+            s.subjects
+          ),
           constraint_settings: {
             settings_json: buildConstraintSettingsPayload(breaks),
             constraint_mask: s.settings.constraintMask,
