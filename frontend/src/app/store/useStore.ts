@@ -554,6 +554,7 @@ interface AppState {
   hasUnsavedChanges: boolean;
   isBootstrapped: boolean;
   backendAvailable: boolean;
+  currentScope: string; // 'main' or a mini_group_id
 
   addSubject: (s: Omit<Subject, 'id'>) => void;
   updateSubject: (id: string, s: Subject) => void;
@@ -626,6 +627,7 @@ export const useStore = create<AppState>()(
       hasUnsavedChanges: false,
       isBootstrapped: false,
       backendAvailable: false,
+      currentScope: 'main',
 
       // ── CRUD: Subjects ────────────────────────────────────────────────
       addSubject: (s) => set(st => ({ subjects: [...st.subjects, { ...s, id: newId() }], hasUnsavedChanges: true })),
@@ -660,6 +662,7 @@ export const useStore = create<AppState>()(
       // ── CRUD: Groups ──────────────────────────────────────────────────
       setGroups: (groups) => set({ groups }),
       fetchGroups: async () => {
+        if (get().groups.length > 0) return; // Optimization: Skip if already fetched
         try {
           const res = await api.listMiniGroups();
           set({ groups: res });
@@ -828,7 +831,8 @@ export const useStore = create<AppState>()(
 
       // ── Bootstrap ─────────────────────────────────────────────────────
       bootstrap: async () => {
-        set({ isBootstrapped: true });
+        const s = get();
+        if (s.isBootstrapped && s.backendAvailable) return;
 
         let up = false;
         try {
@@ -840,25 +844,36 @@ export const useStore = create<AppState>()(
         } catch { up = false; }
 
         set({ backendAvailable: up });
-        if (!up) return;
+        if (!up) {
+          set({ isBootstrapped: true });
+          return;
+        }
 
         try {
           // Default bootstrap loads 'main' scope
           const data = await api.getAllData('main');
           const mapped = mapAllData(data);
-          set({ ...mapped, isBootstrapped: true, backendAvailable: true, hasUnsavedChanges: false });
+          // Only fetch groups if they aren't already here
+          if (get().groups.length === 0) {
+             const groups = await api.listMiniGroups();
+             set({ groups });
+          }
+          set({ ...mapped, isBootstrapped: true, backendAvailable: true, hasUnsavedChanges: false, currentScope: 'main' });
         } catch (err) {
           console.warn('[bootstrap] data load failed:', err);
-          set({ backendAvailable: false });
+          set({ isBootstrapped: true, backendAvailable: false });
         }
       },
 
       loadScopedData: async (groupId) => {
+        const target = groupId || 'main';
         if (!get().backendAvailable) return;
+        if (get().currentScope === target && !get().hasUnsavedChanges) return; // Optimization: Skip if already loaded
+
         try {
-          const data = await api.getAllData(groupId || 'main');
+          const data = await api.getAllData(target);
           const mapped = mapAllData(data);
-          set({ ...mapped, hasUnsavedChanges: false });
+          set({ ...mapped, hasUnsavedChanges: false, currentScope: target });
         } catch (err) {
           console.error('[loadScopedData] failed:', err);
           toast.error("Failed to load data for this scope.");
@@ -927,7 +942,7 @@ export const useStore = create<AppState>()(
         try {
           const data = await api.syncAllData(payload, miniGroupId);
           const mapped = mapAllData(data);
-          set({ ...mapped, hasUnsavedChanges: false });
+          set({ ...mapped, hasUnsavedChanges: false, currentScope: miniGroupId || 'main' });
         } catch (err) {
           throw err; // let Layout show the error toast
         }

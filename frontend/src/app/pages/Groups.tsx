@@ -207,6 +207,8 @@ export function Groups() {
 
   const handleEdit = async (g: MiniGroupOut) => {
     try {
+      // Switch store to this mini-group's lessons context
+      await loadScopedData(g.id);
       const overrides = JSON.parse(g.teacher_time_off_overrides || "{}");
       setDraft({
         id: g.id, name: g.name, days_per_week: g.days_per_week || 5, periods_per_day: g.periods_per_day || 7,
@@ -216,8 +218,6 @@ export function Groups() {
         selected_room_ids: JSON.parse(g.selected_room_ids || "[]"),
         selected_class_ids: JSON.parse(g.selected_class_ids || "[]")
       });
-      // Switch store to this mini-group's lessons context
-      await loadScopedData(g.id);
     } catch { setDraft(emptyDraft()); }
     setDraftLessons([]);
     setView("edit");
@@ -261,7 +261,7 @@ export function Groups() {
       await loadScopedData("main");
       
       setView("list");
-      await fetchGroups();
+      // fetchGroups() removed — store already has the updated group
     } catch (e: any) { toast.error(e.message || "Failed to save"); }
   };
 
