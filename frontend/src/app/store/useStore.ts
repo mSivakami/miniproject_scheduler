@@ -720,7 +720,7 @@ export const useStore = create<AppState>()(
           let result: GenerateResponse;
           if (groupId) {
             const group = s.groups.find(g => g.id === groupId);
-            result = await api.generateMini(groupId, { constraint_mask: group?.constraint_mask ?? 0 });
+            result = await api.generateMini(groupId, { constraint_mask: Number(s.settings.constraintMask || 0) });
           } else {
             result = await api.generate({ constraint_mask: Number(s.settings.constraintMask || 0) });
           }
