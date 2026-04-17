@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { PageWrapper } from "../components/PageWrapper";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useStore, Break, Lesson, Teacher, Subject, Class, Classroom } from "../store/useStore";
 import { toast } from "sonner";
 import { api, MiniGroupOut } from "../api";
@@ -178,6 +179,12 @@ export function Groups() {
   const [draftLessons, setDraftLessons] = useState<Lesson[]>([]);
   const [wizardStage, setWizardStage] = useState<number>(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Draft explicit new lesson (inline form)
   const [inlineLesson, setInlineLesson] = useState<{ subject_id: string; teacher_ids: string[]; room_ids: string[]; class_ids: string[]; sessions: any[] }>(
@@ -301,6 +308,10 @@ export function Groups() {
     return true;
   };
 
+  const closePendingDelete = () => {
+    setPendingDelete(null);
+  };
+
   const wizardPanel = () => {
     switch (wizardStage) {
       case 1: return (
@@ -377,7 +388,19 @@ export function Groups() {
               {draftLessons.map(l => (
                 <div key={l.id} className="border bg-card p-2 rounded flex justify-between items-center group">
                   {renderLesson(l, subjects, teachers, classrooms, classes)}
-                  <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 p-1 h-7 text-destructive" onClick={() => setDraftLessons(p => p.filter(x => x.id !== l.id))}><Trash2 className="w-4 h-4" /></Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="opacity-0 group-hover:opacity-100 p-1 h-7 text-destructive"
+                    onClick={() => setPendingDelete({
+                      title: `Delete ${subjects.find(s => s.id === l.subject_id)?.name || "this"} lesson draft?`,
+                      description: "This will remove the lesson from this mini-group draft before it is saved.",
+                      confirmLabel: "Delete Lesson",
+                      onConfirm: () => setDraftLessons((prev) => prev.filter((item) => item.id !== l.id)),
+                    })}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               ))}
             </div>
@@ -588,7 +611,22 @@ export function Groups() {
                             deleteLesson(l.id);
                             saveAll(draft.id);
                           }}><SettingsIcon className="w-4 h-4" /></Button>
-                          <Button variant="ghost" size="sm" className="p-1 h-7 text-destructive" onClick={() => { deleteLesson(l.id); saveAll(draft.id); }}><Trash2 className="w-4 h-4" /></Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="p-1 h-7 text-destructive"
+                            onClick={() => setPendingDelete({
+                              title: `Delete ${subjects.find(s => s.id === l.subject_id)?.name || "this"} group lesson?`,
+                              description: "This will permanently delete this lesson from the mini-group.",
+                              confirmLabel: "Delete Lesson",
+                              onConfirm: () => {
+                                deleteLesson(l.id);
+                                void saveAll(draft.id);
+                              },
+                            })}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -636,6 +674,22 @@ export function Groups() {
           <DialogFooter><Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button><Button variant="destructive" onClick={async () => { await deleteGroup(deleteId!); setDeleteId(null); }}>Erase</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={pendingDelete?.title ?? "Delete item?"}
+        description={pendingDelete?.description ?? ""}
+        confirmLabel={pendingDelete?.confirmLabel ?? "Delete"}
+        onConfirm={() => {
+          pendingDelete?.onConfirm();
+          closePendingDelete();
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            closePendingDelete();
+          }
+        }}
+      />
 
     </PageWrapper>
   );

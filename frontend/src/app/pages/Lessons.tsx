@@ -5,10 +5,11 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
-import { Plus, Pencil, Trash2, BookMarked, Search, Trash, X, Lock } from "lucide-react";
+import { Plus, Pencil, Trash2, BookMarked, Search, Trash, X, Lock, Filter } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { PageWrapper } from "../components/PageWrapper";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useStore, Session, Lesson } from "../store/useStore";
 import type { Subject, Teacher, Class, Classroom } from "../store/useStore";
 import { toast } from "sonner";
@@ -25,8 +26,7 @@ export function Lessons() {
     addLesson, 
     updateLesson, 
     deleteLesson, 
-    deleteAllLessons,
-    loadScopedData
+    deleteAllLessons
   } = useStore();
   
   // REMOVED redundant loadScopedData("main") on mount as bootstrap handles it.
@@ -48,6 +48,16 @@ export function Lessons() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [subjectFilter, setSubjectFilter] = useState("all");
+  const [teacherFilter, setTeacherFilter] = useState("all");
+  const [classFilter, setClassFilter] = useState("all");
+  const [roomFilter, setRoomFilter] = useState("all");
+  const [pendingDelete, setPendingDelete] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Search states for selection pools
   const [teacherSearch, setTeacherSearch] = useState("");
@@ -56,15 +66,13 @@ export function Lessons() {
 
   const numberOfDays = parseInt(settings.numberOfDays);
   const periodsPerDay = parseInt(settings.periodsPerDay);
+  const mainLessons = lessons.filter((lesson) => !lesson.mini_group_id);
+  const sortedSubjects = [...subjects].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedTeachers = [...teachers].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedClasses = [...classes].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedClassrooms = [...classrooms].sort((a, b) => a.name.localeCompare(b.name));
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-  const filteredLessons = lessons.filter(lesson => {
-    if (lesson.mini_group_id) return false;
-    const subject = subjects.find(s => s.id === lesson.subject_id);
-    const searchLower = searchQuery.toLowerCase();
-    return subject?.name?.toLowerCase().includes(searchLower) ?? true;
-  });
 
   const getSessionDistribution = (sessions: Session[]) => {
     // Format: "3x[1p], 1x[2p]"
@@ -76,6 +84,43 @@ export function Lessons() {
   const calculateTotalPeriods = (sessions: Session[]) => {
     return sessions.reduce((sum, s) => sum + (s.duration * s.count), 0);
   };
+
+  const filteredLessons = mainLessons.filter((lesson) => {
+    const subject = subjects.find((item) => item.id === lesson.subject_id);
+    const lessonTeachers = teachers.filter((item) => lesson.teacher_ids.includes(item.id));
+    const lessonClasses = classes.filter((item) => lesson.class_ids.includes(item.id));
+    const lessonRooms = classrooms.filter((item) => lesson.room_ids.includes(item.id));
+    const searchLower = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !searchLower ||
+      [
+        subject?.name,
+        subject?.short,
+        ...lessonTeachers.flatMap((item) => [item.name, item.short]),
+        ...lessonClasses.flatMap((item) => [item.name, item.short]),
+        ...lessonRooms.flatMap((item) => [item.name, item.short]),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(searchLower);
+
+    return (
+      matchesSearch &&
+      (subjectFilter === "all" || lesson.subject_id === subjectFilter) &&
+      (teacherFilter === "all" || lesson.teacher_ids.includes(teacherFilter)) &&
+      (classFilter === "all" || lesson.class_ids.includes(classFilter)) &&
+      (roomFilter === "all" || lesson.room_ids.includes(roomFilter))
+    );
+  });
+  const filteredPeriods = filteredLessons.reduce((sum, lesson) => sum + calculateTotalPeriods(lesson.sessions), 0);
+  const totalPeriods = mainLessons.reduce((sum, lesson) => sum + calculateTotalPeriods(lesson.sessions), 0);
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    subjectFilter !== "all" ||
+    teacherFilter !== "all" ||
+    classFilter !== "all" ||
+    roomFilter !== "all";
 
   const addSession = (isEdit: boolean = false) => {
     if (isEdit && editingLesson) {
@@ -220,6 +265,18 @@ export function Lessons() {
     toast.success("All lessons deleted!");
   };
 
+  const closePendingDelete = () => {
+    setPendingDelete(null);
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSubjectFilter("all");
+    setTeacherFilter("all");
+    setClassFilter("all");
+    setRoomFilter("all");
+  };
+
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredLessons.length) {
       setSelectedIds(new Set());
@@ -336,28 +393,131 @@ export function Lessons() {
           </Button>
         </div>
 
-        {/* Search & Actions */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
-            <Input
-              placeholder="Search lessons..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+        {/* Search, Filters & Actions */}
+        <div className="space-y-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="relative flex-1 xl:max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
+              <Input
+                placeholder="Search lessons, teachers, classes, or rooms..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {selectedIds.size > 0 && (
+                <Button
+                  onClick={() => setPendingDelete({
+                    title: `Delete ${selectedIds.size} selected lesson${selectedIds.size === 1 ? "" : "s"}?`,
+                    description: "This will permanently delete the selected lessons. This action cannot be undone.",
+                    confirmLabel: "Delete Selected",
+                    onConfirm: handleDeleteSelected,
+                  })}
+                  variant="destructive"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Selected ({selectedIds.size})
+                </Button>
+              )}
+              <Button onClick={() => setIsDeleteAllDialogOpen(true)} variant="outline" size="sm" className="gap-2 text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-900/30">
+                <Trash className="w-4 h-4" />
+                Delete All
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            {selectedIds.size > 0 && (
-              <Button onClick={handleDeleteSelected} variant="destructive" size="sm" className="gap-2">
-                <Trash2 className="w-4 h-4" />
-                Delete Selected ({selectedIds.size})
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Filter className="w-3.5 h-3.5" />
+                Subject
+              </Label>
+              <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All subjects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All subjects</SelectItem>
+                  {sortedSubjects.map((subject) => (
+                    <SelectItem key={subject.id} value={subject.id}>
+                      {subject.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Teacher</Label>
+              <Select value={teacherFilter} onValueChange={setTeacherFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All teachers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All teachers</SelectItem>
+                  {sortedTeachers.map((teacher) => (
+                    <SelectItem key={teacher.id} value={teacher.id}>
+                      {teacher.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Class</Label>
+              <Select value={classFilter} onValueChange={setClassFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All classes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All classes</SelectItem>
+                  {sortedClasses.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Classroom</Label>
+              <Select value={roomFilter} onValueChange={setRoomFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All classrooms" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All classrooms</SelectItem>
+                  {sortedClassrooms.map((room) => (
+                    <SelectItem key={room.id} value={room.id}>
+                      {room.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <span>
+                Showing <span className="font-semibold text-foreground">{filteredLessons.length}</span> of{" "}
+                <span className="font-semibold text-foreground">{mainLessons.length}</span> lessons
+              </span>
+              <span>
+                Periods in view: <span className="font-semibold text-foreground">{filteredPeriods}</span> /{" "}
+                <span className="font-semibold text-foreground">{totalPeriods}</span>
+              </span>
+            </div>
+            {hasActiveFilters && (
+              <Button variant="outline" size="sm" onClick={clearFilters}>
+                Clear Filters
               </Button>
             )}
-            <Button onClick={() => setIsDeleteAllDialogOpen(true)} variant="outline" size="sm" className="gap-2 text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-900/30">
-              <Trash className="w-4 h-4" />
-              Delete All
-            </Button>
           </div>
         </div>
 
@@ -387,7 +547,9 @@ export function Lessons() {
                 {filteredLessons.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8 text-gray-500 dark:text-gray-400">
-                      No lessons found. Click "Add Lesson" to get started.
+                      {hasActiveFilters
+                        ? "No lessons match the current search or filters."
+                        : 'No lessons found. Click "Add Lesson" to get started.'}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -440,7 +602,12 @@ export function Lessons() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteLesson(lesson.id)}
+                            onClick={() => setPendingDelete({
+                              title: `Delete ${subjects.find(s => s.id === lesson.subject_id)?.name || "this"} lesson?`,
+                              description: "This will permanently delete this lesson. This action cannot be undone.",
+                              confirmLabel: "Delete Lesson",
+                              onConfirm: () => handleDeleteLesson(lesson.id),
+                            })}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -997,6 +1164,22 @@ export function Lessons() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={pendingDelete?.title ?? "Delete item?"}
+        description={pendingDelete?.description ?? ""}
+        confirmLabel={pendingDelete?.confirmLabel ?? "Delete"}
+        onConfirm={() => {
+          pendingDelete?.onConfirm();
+          closePendingDelete();
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            closePendingDelete();
+          }
+        }}
+      />
     </PageWrapper>
   );
 }

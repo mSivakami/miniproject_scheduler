@@ -9,6 +9,7 @@ import { Plus, Pencil, Trash2, BookOpen, Search, Trash, Beaker, Brain, Filter } 
 import { Checkbox } from "../components/ui/checkbox";
 import { Switch } from "../components/ui/switch";
 import { PageWrapper } from "../components/PageWrapper";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useStore } from "../store/useStore";
 import type { Subject } from "../store/useStore";
 import { toast } from "sonner";
@@ -29,6 +30,12 @@ export function Subjects() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "normal" | "difficult" | "lab">("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pendingDelete, setPendingDelete] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const filteredSubjects = subjects.filter(subject => {
     const matchesSearch =
@@ -86,6 +93,10 @@ export function Subjects() {
     deleteAllSubjects();
     setIsDeleteAllDialogOpen(false);
     toast.success("All subjects deleted!");
+  };
+
+  const closePendingDelete = () => {
+    setPendingDelete(null);
   };
 
 
@@ -183,7 +194,17 @@ export function Subjects() {
           </div>
           <div className="flex gap-2">
             {selectedIds.size > 0 && (
-              <Button onClick={handleDeleteSelected} variant="destructive" size="sm" className="gap-2">
+              <Button
+                onClick={() => setPendingDelete({
+                  title: `Delete ${selectedIds.size} selected subject${selectedIds.size === 1 ? "" : "s"}?`,
+                  description: "This will permanently delete the selected subjects. This action cannot be undone.",
+                  confirmLabel: "Delete Selected",
+                  onConfirm: handleDeleteSelected,
+                })}
+                variant="destructive"
+                size="sm"
+                className="gap-2"
+              >
                 <Trash2 className="w-4 h-4" />
                 Delete Selected ({selectedIds.size})
               </Button>
@@ -279,7 +300,12 @@ export function Subjects() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteSubject(subject.id)}
+                            onClick={() => setPendingDelete({
+                              title: `Delete ${subject.name}?`,
+                              description: "This will permanently delete this subject. This action cannot be undone.",
+                              confirmLabel: "Delete Subject",
+                              onConfirm: () => handleDeleteSubject(subject.id),
+                            })}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -448,6 +474,22 @@ export function Subjects() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={pendingDelete?.title ?? "Delete item?"}
+        description={pendingDelete?.description ?? ""}
+        confirmLabel={pendingDelete?.confirmLabel ?? "Delete"}
+        onConfirm={() => {
+          pendingDelete?.onConfirm();
+          closePendingDelete();
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            closePendingDelete();
+          }
+        }}
+      />
     </PageWrapper>
   );
 }

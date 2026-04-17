@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../components/ui/dialog";
 import { Plus, Pencil, Trash2, Users, Search, Trash, CalendarOff } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { toast } from "sonner";
 import { useStore, Teacher, slotsToGrid, gridToSlots } from "../store/useStore";
 
@@ -22,6 +23,12 @@ export function Teachers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [timeOffGrid, setTimeOffGrid] = useState<boolean[][]>([]);
+  const [pendingDelete, setPendingDelete] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const numberOfDays = parseInt(settings.numberOfDays);
   const periodsPerDay = parseInt(settings.periodsPerDay);
@@ -85,6 +92,10 @@ export function Teachers() {
     deleteAllTeachers();
     setIsDeleteAllDialogOpen(false);
     toast.success("All teachers deleted!");
+  };
+
+  const closePendingDelete = () => {
+    setPendingDelete(null);
   };
 
 
@@ -177,7 +188,17 @@ export function Teachers() {
           </div>
           <div className="flex gap-2">
             {selectedIds.size > 0 && (
-              <Button onClick={handleDeleteSelected} variant="destructive" size="sm" className="gap-2">
+              <Button
+                onClick={() => setPendingDelete({
+                  title: `Delete ${selectedIds.size} selected teacher${selectedIds.size === 1 ? "" : "s"}?`,
+                  description: "This will permanently delete the selected teachers. This action cannot be undone.",
+                  confirmLabel: "Delete Selected",
+                  onConfirm: handleDeleteSelected,
+                })}
+                variant="destructive"
+                size="sm"
+                className="gap-2"
+              >
                 <Trash2 className="w-4 h-4" />
                 Delete Selected ({selectedIds.size})
               </Button>
@@ -267,7 +288,12 @@ export function Teachers() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteTeacher(teacher.id)}
+                            onClick={() => setPendingDelete({
+                              title: `Delete ${teacher.name}?`,
+                              description: "This will permanently delete this teacher. This action cannot be undone.",
+                              confirmLabel: "Delete Teacher",
+                              onConfirm: () => handleDeleteTeacher(teacher.id),
+                            })}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -479,6 +505,22 @@ export function Teachers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={pendingDelete?.title ?? "Delete item?"}
+        description={pendingDelete?.description ?? ""}
+        confirmLabel={pendingDelete?.confirmLabel ?? "Delete"}
+        onConfirm={() => {
+          pendingDelete?.onConfirm();
+          closePendingDelete();
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            closePendingDelete();
+          }
+        }}
+      />
     </PageWrapper>
   );
 }

@@ -8,6 +8,7 @@ import { Plus, Pencil, Trash2, DoorOpen, Search, Trash, Filter, Beaker } from "l
 import { Checkbox } from "../components/ui/checkbox";
 import { Switch } from "../components/ui/switch";
 import { PageWrapper } from "../components/PageWrapper";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useStore, Classroom } from "../store/useStore";
 import { toast } from "sonner";
 
@@ -29,6 +30,12 @@ export function Classrooms() {
   const [searchQuery, setSearchQuery] = useState("");
   const [labFilter, setLabFilter] = useState<"all" | "lab" | "room">("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pendingDelete, setPendingDelete] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const filteredClassrooms = classrooms.filter(classroom => {
     const matchesSearch =
@@ -85,6 +92,10 @@ export function Classrooms() {
     deleteAllClassrooms();
     setIsDeleteAllDialogOpen(false);
     toast.success("All classrooms deleted!");
+  };
+
+  const closePendingDelete = () => {
+    setPendingDelete(null);
   };
 
 
@@ -174,7 +185,17 @@ export function Classrooms() {
           </div>
           <div className="flex gap-2">
             {selectedIds.size > 0 && (
-              <Button onClick={handleDeleteSelected} variant="destructive" size="sm" className="gap-2">
+              <Button
+                onClick={() => setPendingDelete({
+                  title: `Delete ${selectedIds.size} selected classroom${selectedIds.size === 1 ? "" : "s"}?`,
+                  description: "This will permanently delete the selected classrooms. This action cannot be undone.",
+                  confirmLabel: "Delete Selected",
+                  onConfirm: handleDeleteSelected,
+                })}
+                variant="destructive"
+                size="sm"
+                className="gap-2"
+              >
                 <Trash2 className="w-4 h-4" />
                 Delete Selected ({selectedIds.size})
               </Button>
@@ -267,7 +288,12 @@ export function Classrooms() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteClassroom(classroom.id)}
+                            onClick={() => setPendingDelete({
+                              title: `Delete ${classroom.name}?`,
+                              description: "This will permanently delete this classroom. This action cannot be undone.",
+                              confirmLabel: "Delete Classroom",
+                              onConfirm: () => handleDeleteClassroom(classroom.id),
+                            })}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -455,6 +481,22 @@ export function Classrooms() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={pendingDelete?.title ?? "Delete item?"}
+        description={pendingDelete?.description ?? ""}
+        confirmLabel={pendingDelete?.confirmLabel ?? "Delete"}
+        onConfirm={() => {
+          pendingDelete?.onConfirm();
+          closePendingDelete();
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            closePendingDelete();
+          }
+        }}
+      />
     </PageWrapper>
   );
 }
