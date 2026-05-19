@@ -12,33 +12,22 @@ One folder. One command. Everything runs.
 - **Node.js** 18+ → https://nodejs.org
 - **Python** 3.10+ → https://python.org
 
-### 2 — Install all dependencies
+### 2 — Install all dependencies (one time only)
 
-```bash
-# From the AutoScheduler/ root folder:
-npm run setup
-```
+Double-click `setup.bat` (or run it in the terminal). 
 
-This installs:
-- Node packages for the frontend (`frontend/node_modules/`)
-- Python packages for the backend (`pip install -r backend/requirements.txt`)
+This script will automatically check if Node.js and Python are installed, and install all required Node and Python packages.
 
 ### 3 — Configure environment
 
-The `.env` file is already present in the root folder with sensible defaults.
+The `.env` file is already present with sensible defaults (or will be automatically created by the setup script).
 For local development **you don't need to change anything**.
-
-Open `.env` only if you want to:
-- Use a different backend port (change `VITE_API_URL`)
-- Set a custom JWT secret before deploying (change `JWT_SECRET`)
 
 ### 4 — Run everything
 
-```bash
-npm run dev
-```
+Double-click `start.bat` (or run it in the terminal).
 
-This starts **both** servers simultaneously in one terminal:
+This script will automatically start both the frontend and backend servers simultaneously and open the web app in your default browser.
 
 | Server | URL | What it is |
 |--------|-----|-----------|
@@ -158,13 +147,13 @@ npm run build         # Build frontend for production (output: frontend/dist/)
 - Tokens stored in browser `localStorage`
 - Tokens valid for 7 days
 
-### Data storage
-- All data saved to `backend/app.db` (SQLite file, auto-created on first run)
-- The file lives in `backend/` — delete it to reset all data
+### Data storage & Safeguarding
+- All data saved to `backend/app.db` (SQLite file, auto-created on first run).
+- The file lives in `backend/` — delete it to reset all data.
+- **Backups**: To safeguard your data, double-click `backup_db.bat`. This will create a timestamped copy of your `app.db` file in the `backups/` folder. Do this periodically or before making massive changes.
 
 ### Timetable generation
 - **With backend running:** frontend sends data to `/api/generate/main` and the Python GA runs server-side (faster, uses your full CPU)
-- **Without backend:** a JavaScript GA runs directly in the browser as a fallback — no data is lost
 
 ### Saving data
 - "Save All" button syncs your current state to the backend database
