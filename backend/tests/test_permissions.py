@@ -125,7 +125,7 @@ class PermissionRegressionTests(unittest.TestCase):
 
         first_current = self._login_as("first1", "secret123")
         second_current = self._login_as("second1", "secret123")
-        get_or_create_institution(self.db)
+        get_or_create_institution(self.db, first_current.id)
 
         saved = save_timetable(
             TimetableSave(
@@ -139,8 +139,8 @@ class PermissionRegressionTests(unittest.TestCase):
             second_current,
         )
 
-        listed = list_timetables(self.db, first_current)
-        detail = get_timetable(saved.id, self.db, first_current)
+        listed = list_timetables(self.db, second_current)
+        detail = get_timetable(saved.id, self.db, second_current)
 
         self.assertEqual(len(listed), 1)
         self.assertEqual(listed[0].id, saved.id)

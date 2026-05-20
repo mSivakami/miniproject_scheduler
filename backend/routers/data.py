@@ -146,7 +146,7 @@ def sync_all_data(
     inst = get_or_create_institution(db, current_user.id)
 
     # Determine the effective scope for lesson block operations
-    effective_mini_group_id = mini_group_id
+    effective_mini_group_id = mini_group_id or "main"
 
     # 1. Update Institution
     if data.institution:
