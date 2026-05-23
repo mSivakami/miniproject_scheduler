@@ -1,188 +1,229 @@
 # AutoScheduler
 
-Automatic Timetable Scheduler using a Genetic Algorithm.
-One folder. One command. Everything runs.
+AutoScheduler is a high-performance academic timetable optimization suite designed to solve complex institutional scheduling conflicts. Driven by an advanced Genetic Algorithm (GA) solver, the application features an interactive drag-and-drop grid interface, dynamic constraint customization, and modular mini-group divisions to handle administrative demands and scheduling emergencies.
+
+The system is architected as a decoupled React-FastAPI application, with a high-performance Python engine for server-side generation, a TypeScript GA fallback that runs directly in the client browser, and a single-file SQLite database for secure, on-premises data storage.
 
 ---
 
-## Quick start
+## Core Features
 
-### 1 — Install prerequisites (one time only)
+### 1. User Interface for Resource Management
 
-- **Node.js** 18+ → https://nodejs.org
-- **Python** 3.10+ → https://python.org
+The application provides an intuitive dashboard for managing institutional resources: Subjects, Teachers, Classes, and Classrooms. Instructors can be configured with specific, hour-level unavailability slots. To accommodate different working environments, the interface supports multiple theme and light modes.
 
-### 2 — Install all dependencies (one time only)
+![Resource Management Dashboard](assets/screenshots/resource_management.png)
 
-Double-click `setup.bat` (or run it in the terminal). 
+### 2. Lesson Block Creation and Management
 
-This script will automatically check if Node.js and Python are installed, and install all required Node and Python packages.
+Core scheduling units are grouped into "Lesson Blocks." Administrators can easily package multiple instructors, classes (student groups), subject durations, and classroom preferences into unified constraints. This prevents scheduling gaps and aligns curricular structures before executing the solver.
 
-### 3 — Configure environment
+![Lesson Block Builder](assets/screenshots/lesson_blocks.png)
 
-The `.env` file is already present with sensible defaults (or will be automatically created by the setup script).
-For local development **you don't need to change anything**.
+### 3. Mini-Group Constructions for Emergency Timetables
 
-### 4 — Run everything
+In scenarios such as mid-semester staff changes, local lockdowns, or departmental reorganizations, the system allows the partitioning of institutional resources into isolated "Mini-Groups." This permits the generation of independent, localized sub-timetables without modifying or corrupting the master schedule.
 
-Double-click `start.bat` (or run it in the terminal).
+![Mini-Group Configurations](assets/screenshots/mini_groups.png)
 
-This script will automatically start both the frontend and backend servers simultaneously and open the web app in your default browser.
+### 4. Interactive Drag-and-Drop Timetable Editor
 
-| Server | URL | What it is |
-|--------|-----|-----------|
-| Frontend (Vite) | http://localhost:5173 | The React web app |
-| Backend (Uvicorn) | http://localhost:8000 | The FastAPI + GA engine |
-| API Docs | http://localhost:8000/docs | Auto-generated Swagger UI |
+Following schedule generation, administrators can make manual adjustments directly on the output grid. The interactive interface supports smooth drag-and-drop operations, letting users swap periods, change classrooms, and permanently lock specific lessons to slots to freeze them against future generation runs.
 
-Open **http://localhost:5173** in your browser.
+![Interactive Drag and Drop Schedule Grid](assets/screenshots/timetable_grid.png)
 
----
+### 5. Constraint Evaluator with Sliding Weights and Toggles
 
-## First-time login
+Soft scheduling preferences are configured via an interactive Settings panel. Using responsive sliders and toggle switches, users can dynamically tune the penalties of the optimization engine, including teacher consecutive load limits, student gap hour minimization, subject distribution across the week, and morning lab avoidance.
 
-On first run, the database is empty.
-The login screen will show **"Create admin account"** — enter any username and password (min 6 chars) to set up your account.
+![Constraint Evaluator Settings](assets/screenshots/constraint_evaluator.png)
 
-On every subsequent run it shows the normal **"Sign in"** screen.
+### 6. Genetic Algorithm Optimization Engine
 
----
+The core solver relies on an evolutionary heuristic algorithm:
 
-## Where your keys go
+- **Chromosome Encoding**: maps lesson block sessions dynamically to three-dimensional coordinates (Day, Period, Classroom).
+- **Hard Constraints**: strictly enforces absolute rules (no teacher double-booking, no classroom over-allocations, and no student group overlaps).
+- **Soft Constraints**: computes a comprehensive fitness penalty score using user-configured weights to optimize comfort and efficiency.
+- **Operators**: implements selection, crossover, and mutation across customizable generations.
 
-Everything is in the **single `.env` file** at the root:
+### 7. History Management and PDF Export
 
-```
-AutoScheduler/
-└── .env   ← THE ONLY FILE YOU NEED TO EDIT
-```
+Timetables are saved to a historical registry for persistent reference. Users can reload past schedules to review generation parameters, make secondary manual edits, or export professional, print-ready PDF documents directly from the browser.
 
-| Variable | What it does | Default |
-|----------|-------------|---------|
-| `VITE_API_URL` | URL the frontend uses to talk to the backend | `http://localhost:8000` |
-| `JWT_SECRET` | Secret used to sign login tokens | `autoscheduler-change-this-...` |
+![Saved Timetables History](assets/screenshots/timetable_history.png)
 
-The `.env` is automatically copied to `frontend/.env` so Vite can read `VITE_API_URL`.
+### 8. Locally Deployed and Shareable Database
+
+All application data is consolidated within a local SQLite database (`app.db`). This file-based persistence model keeps institutional records entirely on-premises under your control. The database is easily shareable and transportable; backup routines can duplicate and stamp the file for rapid recovery.
 
 ---
 
-## Project structure
+## Architecture and System Topology
 
-```
-AutoScheduler/
-├── .env                   ← YOUR KEYS (never commit this)
-├── .env.example           ← template — safe to commit
-├── .gitignore
-├── package.json           ← root scripts (dev, setup, build)
-├── README.md
-│
-├── frontend/              ← React + TypeScript + Vite
-│   ├── src/app/
-│   │   ├── api.ts         ← all backend HTTP calls
-│   │   ├── App.tsx        ← auth check + router
-│   │   ├── auth/
-│   │   │   └── client.ts  ← JWT auth helpers
-│   │   ├── store/
-│   │   │   └── useStore.ts ← Zustand store (data + generation)
-│   │   ├── ga/
-│   │   │   └── scheduler.ts ← local GA fallback (runs in browser)
-│   │   ├── components/
-│   │   │   └── Layout.tsx
-│   │   └── pages/
-│   │       ├── AuthPage.tsx
-│   │       ├── Dashboard.tsx
-│   │       ├── Subjects.tsx
-│   │       ├── Teachers.tsx
-│   │       ├── Classes.tsx
-│   │       ├── Classrooms.tsx
-│   │       ├── Lessons.tsx
-│   │       ├── Timetable.tsx
-│   │       ├── SavedTimetables.tsx
-│   │       ├── Groups.tsx
-│   │       └── Settings.tsx
-│   └── package.json
-│
-└── backend/               ← FastAPI + SQLite + GA Engine
-    ├── main.py            ← server entry point
-    ├── database.py        ← SQLite setup
-    ├── models.py          ← SQLAlchemy ORM models
-    ├── schemas.py         ← Pydantic request/response models
-    ├── requirements.txt   ← Python dependencies
-    ├── app.db             ← SQLite database (auto-created)
-    ├── routers/
-    │   ├── auth.py        ← POST /auth/setup, /auth/login, /auth/me
-    │   ├── data.py        ← GET/POST /api/data
-    │   ├── generate.py    ← POST /api/generate/main
-    │   ├── timetables.py  ← GET/POST /api/timetables
-    │   └── mini_groups.py ← /api/mini-groups
-    ├── engine/            ← Genetic Algorithm implementation
-    │   ├── ga_engine.py
-    │   ├── ga_fitness.py
-    │   ├── ga_operators.py
-    │   └── ...
-    └── services/
-        └── ga_bridge.py   ← connects DB data to GA engine
+The system uses a decoupled client-server architecture. For standalone deployment, a complete browser-side fallback engine is integrated so that scheduling optimization can run offline if the backend service is unavailable.
+
+```mermaid
+graph TD
+    subgraph Client [Client-Side: React Web App]
+        Vite[React v18 + Vite] --> Zustand[Zustand State Store]
+        Zustand --> UI[Interactive UI Panels]
+        Zustand --> LocalGA[TypeScript GA Engine Fallback]
+        UI --> DND[Manual Drag-&-Drop Editor]
+    end
+
+    subgraph Server [Backend: FastAPI Python Service]
+        FastAPI[FastAPI Router] --> Preflight[Pre-flight Validation Engine]
+        FastAPI --> GABridge[Services GA Bridge]
+        GABridge --> PythonGA[Python NumPy GA Optimization Engine]
+        FastAPI --> SQLite[(SQLite DB: app.db)]
+    end
+
+    Zustand <-->|HTTP REST / JWT Auth| FastAPI
 ```
 
 ---
 
-## Available scripts
+## Installation and Setup
 
-Run all from the `AutoScheduler/` root:
+### Prerequisites
 
-```bash
-npm run dev           # Start frontend + backend together
-npm run dev:frontend  # Start only the frontend (Vite)
-npm run dev:backend   # Start only the backend (Uvicorn)
-npm run setup         # Install all dependencies (run once)
-npm run build         # Build frontend for production (output: frontend/dist/)
-```
+Ensure the following software is installed on the host machine:
+
+- **Node.js** (v18.0.0 or higher)
+- **Python** (v3.10.0 or higher)
+
+### Environment Configuration
+
+1. Duplicate the `.env.example` file at the root of the project:
+   ```bash
+   cp .env.example .env
+   ```
+2. Configure the system keys inside `.env` (default values are suitable for local development):
+   - `VITE_API_URL`: The endpoint URL the frontend uses to communicate with the API.
+   - `JWT_SECRET`: The secret key used to sign authentication tokens.
+
+### Automated Setup
+
+- **On Windows**:
+  Double-click `setup_windows.bat` in the root folder, or execute:
+  ```cmd
+  setup_windows.bat
+  ```
+- **On macOS / Linux**:
+  Open a terminal in the root directory, ensure the script is executable, and execute:
+  ```bash
+  chmod +x setup_linux.sh
+  ./setup_linux.sh
+  ```
+  _(The setup script verifies runtimes, installs root, frontend, and backend dependencies, mirrors configurations, and prepares the SQLite database)._
+
+### Running the Application in Development Mode
+
+- **On Windows**:
+  Double-click `start_windows.bat` in the root folder, or execute:
+  ```cmd
+  start_windows.bat
+  ```
+- **On macOS / Linux**:
+  Ensure the script is executable and launch the concurrently run environment:
+  ```bash
+  chmod +x start_linux.sh
+  ./start_linux.sh
+  ```
+
+Once running, the following endpoints are available:
+
+- **Frontend Web App**: http://localhost:5173
+- **Backend REST API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs (Swagger UI)
 
 ---
 
-## How it works
+## Operational Scripts Reference
 
-### Authentication
-- Backend uses its own JWT system — no external auth service needed
-- Tokens stored in browser `localStorage`
-- Tokens valid for 7 days
+Execute these commands from the root directory of the workspace:
 
-### Data storage & Safeguarding
-- All data saved to `backend/app.db` (SQLite file, auto-created on first run).
-- The file lives in `backend/` — delete it to reset all data.
-- **Backups**: To safeguard your data, double-click `backup_db.bat`. This will create a timestamped copy of your `app.db` file in the `backups/` folder. Do this periodically or before making massive changes.
-
-### Timetable generation
-- **With backend running:** frontend sends data to `/api/generate/main` and the Python GA runs server-side (faster, uses your full CPU)
-
-### Saving data
-- "Save All" button syncs your current state to the backend database
-- In local mode (backend not running) data is saved to browser `localStorage`
+| Script                 | Purpose                                                                 |
+| :--------------------- | :---------------------------------------------------------------------- |
+| `npm run setup`        | Installs dependencies across the root directory and sub-folders.        |
+| `npm run dev`          | Starts frontend (Vite) and backend (FastAPI) servers concurrently.      |
+| `npm run dev:frontend` | Launches only the React frontend application.                           |
+| `npm run dev:backend`  | Launches only the FastAPI backend server.                               |
+| `npm run build`        | Compiles frontend assets into highly optimized static production files. |
 
 ---
 
-## Deploying
+## Administration and Database Maintenance
 
-1. Build the frontend: `npm run build` → output in `frontend/dist/`
-2. Serve `frontend/dist/` from any static host (Netlify, Vercel, GitHub Pages)
-3. Deploy `backend/` to any Python host (Railway, Render, Fly.io)
-4. Set environment variables on your hosting platform:
-   - Frontend host: `VITE_API_URL=https://your-backend-url.railway.app`
-   - Backend host: `JWT_SECRET=your-production-secret`
+### First-Time Account Setup
+
+1. On initial startup, the database is empty. The application automatically redirects to a **"Create Admin Account"** screen.
+2. Enter your preferred administrator credentials (password must be at least 6 characters).
+3. Subsequent sessions will display a standard **"Sign In"** dialog, and endpoint authorization is managed via secure JWT tokens valid for 7 days.
+
+### Database Backups
+
+To safeguard institutional data prior to major scheduler operations:
+
+- **On Windows**: Double-click `backup_windows.bat` (or execute it in a command shell).
+- **On macOS / Linux**: Ensure the script is executable and execute:
+  ```bash
+  chmod +x backup_linux.sh
+  ./backup_linux.sh
+  ```
+- This duplicates the active database file (`backend/app.db`) and saves a timestamped copy in the `backups/` directory.
 
 ---
 
-## Troubleshooting
+## Production Deployment
 
-**"Cannot reach the backend server"** on the login screen
-→ Make sure `npm run dev` is running and the backend started successfully.
-→ Check the terminal for Python errors.
+### Frontend Hosting
 
-**Login fails after restarting**
-→ Your token may have expired. Click "Sign in" again — tokens last 7 days.
+1. Build the production assets:
+   ```bash
+   npm run build
+   ```
+2. Deploy the generated output folder (`frontend/dist/`) to static hosting platforms such as Vercel, Netlify, or GitHub Pages.
+3. Configure the environment variable: `VITE_API_URL=https://your-backend-api.com`.
 
-**"No lesson blocks configured"** when generating
-→ Add Subjects → Teachers → Classes → Rooms → then create Lessons linking them together. Then generate.
+### Backend Hosting
 
-**Want to reset everything**
-→ Delete `backend/app.db` and restart. You'll be prompted to create a new account.
+1. Host the `backend/` directory on a cloud platform that supports Python runtimes (e.g., Render, Railway, or AWS EC2).
+2. Configure the startup command:
+   ```bash
+   python -m uvicorn main:app --host 0.0.0.0 --port 8000
+   ```
+3. Establish environment variables on your platform:
+   - `JWT_SECRET`: A secure, high-entropy key phrase.
+
+---
+
+## Diagnostics and Troubleshooting
+
+### "Cannot reach the backend server"
+
+- Ensure that the backend process is running and bound to port `8000`.
+- Check if a local firewall or security tool is blocking Python from binding to port `8000`.
+- Open http://localhost:8000/api/health in your browser to verify API availability.
+
+### "No lesson blocks configured"
+
+- You must configure resources first. Go to **Subjects** $\rightarrow$ **Teachers** $\rightarrow$ **Classes** $\rightarrow$ **Classrooms** to add items.
+- Navigate to the **Lessons** panel and create at least one lesson block combining these elements before launching the generator.
+
+### Optimal Scheduling Infeasibility
+
+- If the GA solver fails to converge on a conflict-free solution, your physical constraints may be mathematically impossible (e.g., a teacher assigned more teaching periods than the total periods in the weekly setup).
+- Run the **Pre-flight Check** inside the generation panel to get an automatic analysis of structural issues.
+- Adjust soft-constraint sliders in the **Settings** panel to lower penalty intensities or disable non-essential preferences.
+
+### Database Reset
+
+- To clear all local data and recreate the initial administrator user, shut down the running server process, delete the database file at `backend/app.db`, and restart the environment.
+
+---
+
+## License
+
+AutoScheduler is open-source software. All rights reserved. Custom integrations or technical inquiries should be directed to the institutional engineering administration.
