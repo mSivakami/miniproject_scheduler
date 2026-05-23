@@ -12,31 +12,31 @@ The system is architected as a decoupled React-FastAPI application, with a high-
 
 The application provides an intuitive dashboard for managing institutional resources: Subjects, Teachers, Classes, and Classrooms. Instructors can be configured with specific, hour-level unavailability slots. To accommodate different working environments, the interface supports multiple theme and light modes.
 
-![Resource Management Dashboard](assets/screenshots/resource_management.png)
+![Resource Management Dashboard](assets/screenshots/data.png)
 
 ### 2. Lesson Block Creation and Management
 
 Core scheduling units are grouped into "Lesson Blocks." Administrators can easily package multiple instructors, classes (student groups), subject durations, and classroom preferences into unified constraints. This prevents scheduling gaps and aligns curricular structures before executing the solver.
 
-![Lesson Block Builder](assets/screenshots/lesson_blocks.png)
+![Lesson Block Builder](assets/screenshots/lessons.png)
 
 ### 3. Mini-Group Constructions for Emergency Timetables
 
 In scenarios such as mid-semester staff changes, local lockdowns, or departmental reorganizations, the system allows the partitioning of institutional resources into isolated "Mini-Groups." This permits the generation of independent, localized sub-timetables without modifying or corrupting the master schedule.
 
-![Mini-Group Configurations](assets/screenshots/mini_groups.png)
+![Mini-Group Configurations](assets/screenshots/mini.png)
 
 ### 4. Interactive Drag-and-Drop Timetable Editor
 
 Following schedule generation, administrators can make manual adjustments directly on the output grid. The interactive interface supports smooth drag-and-drop operations, letting users swap periods, change classrooms, and permanently lock specific lessons to slots to freeze them against future generation runs.
 
-![Interactive Drag and Drop Schedule Grid](assets/screenshots/timetable_grid.png)
+![Interactive Drag and Drop Schedule Grid](assets/screenshots/drag.png)
 
 ### 5. Constraint Evaluator with Sliding Weights and Toggles
 
 Soft scheduling preferences are configured via an interactive Settings panel. Using responsive sliders and toggle switches, users can dynamically tune the penalties of the optimization engine, including teacher consecutive load limits, student gap hour minimization, subject distribution across the week, and morning lab avoidance.
 
-![Constraint Evaluator Settings](assets/screenshots/constraint_evaluator.png)
+![Constraint Evaluator Settings](assets/screenshots/constraints.png)
 
 ### 6. Genetic Algorithm Optimization Engine
 
@@ -51,7 +51,7 @@ The core solver relies on an evolutionary heuristic algorithm:
 
 Timetables are saved to a historical registry for persistent reference. Users can reload past schedules to review generation parameters, make secondary manual edits, or export professional, print-ready PDF documents directly from the browser.
 
-![Saved Timetables History](assets/screenshots/timetable_history.png)
+![Saved Timetables History](assets/screenshots/saved.png)
 
 ### 8. Locally Deployed and Shareable Database
 
