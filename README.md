@@ -2,7 +2,7 @@
 
 AutoScheduler is a high-performance academic timetable optimization suite designed to solve complex institutional scheduling conflicts. Driven by an advanced Genetic Algorithm (GA) solver, the application features an interactive drag-and-drop grid interface, dynamic constraint customization, and modular mini-group divisions to handle administrative demands and scheduling emergencies.
 
-The system is architected as a decoupled React-FastAPI application, with a high-performance Python engine for server-side generation, a TypeScript GA fallback that runs directly in the client browser, and a single-file SQLite database for secure, on-premises data storage.
+The system is architected as a decoupled React-FastAPI application, with a high-performance Python engine for server-side generation, and a single-file SQLite database for secure, on-premises data storage.
 
 ---
 
