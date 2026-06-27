@@ -191,7 +191,11 @@ export function Lessons() {
         teacher_ids: newLesson.teacher_ids,
         class_ids: newLesson.class_ids,
         room_ids: newLesson.room_ids,
-        sessions: newLesson.sessions,
+        // When locked, force sessions to match locked_duration so lessonsToBackend
+        // can correctly identify the locked session block (otherwise it defaults to duration=1).
+        sessions: newLesson.is_locked && newLesson.locked_duration
+          ? [{ duration: newLesson.locked_duration as 1 | 2 | 3, count: 1 }]
+          : newLesson.sessions,
         is_locked: newLesson.is_locked,
         locked_day: newLesson.is_locked ? newLesson.locked_day : null,
         locked_start_period: newLesson.is_locked && newLesson.locked_start_period !== null ? newLesson.locked_start_period - 1 : null, // Convert to 0-indexed
@@ -240,6 +244,11 @@ export function Lessons() {
       }
       updateLesson(editingLesson.id, {
         ...editingLesson,
+        // When locked, force sessions to match locked_duration so lessonsToBackend
+        // can correctly identify the locked session block (otherwise it defaults to duration=1).
+        sessions: editingLesson.is_locked && editingLesson.locked_duration
+          ? [{ duration: editingLesson.locked_duration as 1 | 2 | 3, count: 1 }]
+          : editingLesson.sessions,
         locked_start_period: editingLesson.is_locked && editingLesson.locked_start_period !== null ? editingLesson.locked_start_period - 1 : null, // Convert to 0-indexed
       });
       setIsEditDialogOpen(false);

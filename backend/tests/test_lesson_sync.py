@@ -282,6 +282,57 @@ class LessonSyncTests(unittest.TestCase):
         self.assertEqual(len(res_mini["lesson_blocks"]), 1)
         self.assertEqual(res_mini["lesson_blocks"][0]["id"], "lb-mini-1")
 
+    def test_constraint_settings_sync(self):
+        # 1. Sync constraint settings under main scope
+        payload_1 = AllDataSave(
+            institution=InstitutionUpdate(name="Constraint Test School"),
+            teachers=[],
+            subjects=[],
+            rooms=[],
+            classrooms=[],
+            lesson_blocks=[],
+            constraint_settings=ConstraintSettingsCreate(
+                settings_json='{"breaks":[{"day":0,"period":3}]}',
+                constraint_mask=456,
+            ),
+        )
+
+        res1 = sync_all_data(payload_1, self.db, self.current_user, mini_group_id=None)
+        
+        # Verify response contains the constraint settings correctly
+        self.assertIsNotNone(res1["constraint_settings"])
+        self.assertEqual(res1["constraint_settings"].settings_json, '{"breaks":[{"day":0,"period":3}]}')
+        self.assertEqual(res1["constraint_settings"].constraint_mask, 456)
+        self.assertIsNone(res1["constraint_settings"].mini_group_id)
+
+        # Check total constraint settings in db (should be exactly 1)
+        from models import ConstraintSettings
+        cs_count = self.db.query(ConstraintSettings).filter(ConstraintSettings.institution_id == self.inst.id).count()
+        self.assertEqual(cs_count, 1)
+
+        # 2. Sync again to update it
+        payload_2 = AllDataSave(
+            teachers=[],
+            subjects=[],
+            rooms=[],
+            classrooms=[],
+            lesson_blocks=[],
+            constraint_settings=ConstraintSettingsCreate(
+                settings_json='{"breaks":[{"day":0,"period":3},{"day":1,"period":4}]}',
+                constraint_mask=789,
+            ),
+        )
+        res2 = sync_all_data(payload_2, self.db, self.current_user, mini_group_id=None)
+
+        self.assertIsNotNone(res2["constraint_settings"])
+        self.assertEqual(res2["constraint_settings"].settings_json, '{"breaks":[{"day":0,"period":3},{"day":1,"period":4}]}')
+        self.assertEqual(res2["constraint_settings"].constraint_mask, 789)
+
+        # Check total constraint settings in db (should STILL be exactly 1, not duplicate)
+        cs_count_updated = self.db.query(ConstraintSettings).filter(ConstraintSettings.institution_id == self.inst.id).count()
+        self.assertEqual(cs_count_updated, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
+

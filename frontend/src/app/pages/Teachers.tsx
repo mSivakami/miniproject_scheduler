@@ -43,14 +43,15 @@ export function Teachers() {
 
   const filteredTeachers = teachers.filter(teacher =>
     teacher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    teacher.short.toLowerCase().includes(searchQuery.toLowerCase())
+    (teacher.short || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleAddTeacher = () => {
-    if (newTeacher.name && newTeacher.short) {
+    if (newTeacher.name) {
+      const shortCode = newTeacher.short.trim() || newTeacher.name.slice(0, 2).toUpperCase();
       addTeacher({
         name: newTeacher.name,
-        short: newTeacher.short,
+        short: shortCode,
         color: newTeacher.color,
         available_mask: -1,
         max_per_day: 6,
@@ -69,8 +70,12 @@ export function Teachers() {
   };
 
   const handleSaveEdit = () => {
-    if (editingTeacher) {
-      updateTeacher(editingTeacher.id, editingTeacher);
+    if (editingTeacher && editingTeacher.name) {
+      const shortCode = editingTeacher.short.trim() || editingTeacher.name.slice(0, 2).toUpperCase();
+      updateTeacher(editingTeacher.id, {
+        ...editingTeacher,
+        short: shortCode,
+      });
       setIsEditDialogOpen(false);
       setEditingTeacher(null);
       toast.success("Teacher updated successfully!");
@@ -361,7 +366,7 @@ export function Teachers() {
             <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddTeacher} disabled={!newTeacher.name || !newTeacher.short}>
+            <Button onClick={handleAddTeacher} disabled={!newTeacher.name}>
               Add Teacher
             </Button>
           </DialogFooter>
@@ -415,7 +420,7 @@ export function Teachers() {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveEdit}>
+            <Button onClick={handleSaveEdit} disabled={!editingTeacher?.name}>
               Save Changes
             </Button>
           </DialogFooter>

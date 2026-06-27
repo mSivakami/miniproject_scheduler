@@ -263,7 +263,7 @@ def sync_all_data(
         else:
             db.add(ConstraintSettings(
                 institution_id=inst.id,
-                mini_group_id=effective_mini_group_id,
+                mini_group_id=cs_group_id,
                 settings_json=data.constraint_settings.settings_json,
                 constraint_mask=data.constraint_settings.constraint_mask,
                 is_active=data.constraint_settings.is_active,
